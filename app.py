@@ -5,7 +5,7 @@ from time import strftime
 app = Flask(__name__);
 
 try:
-	mkdir(path.abspath("./ocr"));
+	mkdir(path.abspath("./ocrfiles"));
 except FileExistsError:
 	pass;
 
@@ -22,18 +22,18 @@ def ocr_upload():
 
 		if request.form["function"] == "upload":
 
-			# trying to make the ./ocr directory
+			# trying to make the ./ocrfiles directory
 			# if it already exists, this part is skipped
 
 			try:
-				mkdir(path.abspath("./ocr"));
+				mkdir(path.abspath("./ocrfiles"));
 			except FileExistsError:
 				pass;
 
-			# saving the received file in ./ocr
+			# saving the received file in ./ocrfiles
 			# the filename is based on time of upload
 
-			with open(path.abspath(f"./ocr/{strftime("%H-%M-%S %d-%m-%Y")}.png"), "wb") as fh:
+			with open(path.abspath(f"./ocrfiles/{strftime("%H-%M-%S %d-%m-%Y")}.png"), "wb") as fh:
 				request.files["image"].save(fh);
 
 			# returning response
@@ -42,9 +42,9 @@ def ocr_upload():
 
 		elif request.form["function"] == "delete all":
 
-			# deleting all files in ./ocr subdir
+			# deleting all files in ./ocrfiles subdir
 
-			for d in scandir(path.abspath("./ocr/")):
+			for d in scandir(path.abspath("./ocrfiles/")):
 				print(d);
 				if path.isfile(d):
 					remove(d);
