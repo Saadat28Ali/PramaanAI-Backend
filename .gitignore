@@ -1,3 +1,4 @@
 __pycache__/
 ocrfiles/
 src/ocr/__pycache__/
+venv/
