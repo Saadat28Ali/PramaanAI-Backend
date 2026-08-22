@@ -15,7 +15,3 @@ This project proposes an AI-driven platform that automatically:
 3. Detects signs of digital or physical tampering
 4. Verifies that the document photo matches the presented individual
 5. Generates a consolidated **risk score** to assist human decision-making
-
-## License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
