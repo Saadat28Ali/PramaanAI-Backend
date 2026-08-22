@@ -2,7 +2,7 @@ from flask import Flask, request;
 from os import path, mkdir, scandir, remove
 from time import strftime
 
-from src.ocr.validation import Validator
+from ocr.validation import Validator
 
 app = Flask(__name__);
 
@@ -38,7 +38,7 @@ def ocr_upload():
 			if "image" not in request.files:
 				return "No image uploaded."
 
-			with open(path.abspath(f"./ocrfiles/{strftime("%H-%M-%S %d-%m-%Y")}.png"), "wb") as fh:
+			with open(path.abspath(f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png"), "wb") as fh:
 				request.files["image"].save(fh);
 
 			# returning response
