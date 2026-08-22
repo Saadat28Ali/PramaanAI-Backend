@@ -1,5 +1,5 @@
 from flask import Flask, request;
-from os import path, mkdir
+from os import path, mkdir, scandir, remove
 from time import time, gmtime
 
 app = Flask(__name__);
@@ -12,23 +12,37 @@ def hello_world():
 def ocr_upload():
 	if request.method == "POST":
 
-		# trying to make the ./ocr directory
-		# if it already exists, this part is skipped
+		if request.form["function"] == "upload":
 
-		try:
-			mkdir(path.abspath("./ocr"));
-		except FileExistsError:
-			pass;
+			# trying to make the ./ocr directory
+			# if it already exists, this part is skipped
 
-		# saving the received file in ./ocr
-		# the filename is based on time of upload
+			try:
+				mkdir(path.abspath("./ocr"));
+			except FileExistsError:
+				pass;
 
-		current_time = gmtime(time());
-		with open(path.abspath(f"./ocr/{current_time.tm_hour}-{current_time.tm_min}-{current_time.tm_sec} {current_time.tm_mday}-{current_time.tm_mon}-{current_time.tm_year}.png"), "wb") as fh:
-			request.files["image"].save(fh);
+			# saving the received file in ./ocr
+			# the filename is based on time of upload
 
-		# returning response
+			current_time = gmtime(time());
+			with open(path.abspath(f"./ocr/{current_time.tm_hour}-{current_time.tm_min}-{current_time.tm_sec} {current_time.tm_mday}-{current_time.tm_mon}-{current_time.tm_year}.png"), "wb") as fh:
+				request.files["image"].save(fh);
 
-		return "File uploaded.";
+			# returning response
+
+			return "File uploaded.";
+
+		elif request.form["function"] == "delete all":
+
+			# deleting all files in ./ocr subdir
+
+			for d in scandir(path.abspath("./ocr/")):
+				print(d);
+				if path.isfile(d):
+					remove(d);
+
+			return "Deleted all files from server.";
+
 	else:
 		return "Retry with POST method.";
