@@ -2,6 +2,8 @@ from flask import Flask, request;
 from os import path, mkdir, scandir, remove
 from time import strftime
 
+from src.ocr.validation import Validator
+
 app = Flask(__name__);
 
 try:
@@ -20,7 +22,7 @@ def ocr_upload():
 		if "function" not in request.form:
 			return "No function provided in form data.";
 
-		if request.form["function"] == "upload":
+		if request.form["function"] == "validate":
 
 			# trying to make the ./ocrfiles directory
 			# if it already exists, this part is skipped
@@ -33,12 +35,18 @@ def ocr_upload():
 			# saving the received file in ./ocrfiles
 			# the filename is based on time of upload
 
+			if "image" not in request.files:
+				return "No image uploaded."
+
 			with open(path.abspath(f"./ocrfiles/{strftime("%H-%M-%S %d-%m-%Y")}.png"), "wb") as fh:
 				request.files["image"].save(fh);
 
 			# returning response
 
-			return "File uploaded.";
+			if Validator.validateOCR():
+				return "OCR valid.";
+			else:
+				return "OCR invalid."
 
 		elif request.form["function"] == "delete all":
 
@@ -50,6 +58,9 @@ def ocr_upload():
 					remove(d);
 
 			return "Deleted all files from server.";
+
+		else:
+			return "Invalid function."
 
 	else:
 		return "Retry with POST method.";
