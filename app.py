@@ -4,6 +4,11 @@ from time import strftime
 
 app = Flask(__name__);
 
+try:
+	mkdir(path.abspath("./ocr"));
+except FileExistsError:
+	pass;
+
 @app.route('/', methods=["GET"])
 def hello_world():
 	return "Hello world";
