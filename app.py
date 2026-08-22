@@ -1,6 +1,6 @@
 from flask import Flask, request;
 from os import path, mkdir, scandir, remove
-from time import time, gmtime
+from time import strftime
 
 app = Flask(__name__);
 
@@ -25,8 +25,7 @@ def ocr_upload():
 			# saving the received file in ./ocr
 			# the filename is based on time of upload
 
-			current_time = gmtime(time());
-			with open(path.abspath(f"./ocr/{current_time.tm_hour}-{current_time.tm_min}-{current_time.tm_sec} {current_time.tm_mday}-{current_time.tm_mon}-{current_time.tm_year}.png"), "wb") as fh:
+			with open(path.abspath(f"./ocr/{strftime("%H-%M-%S %d-%m-%Y")}.png"), "wb") as fh:
 				request.files["image"].save(fh);
 
 			# returning response
