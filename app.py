@@ -17,6 +17,9 @@ def hello_world():
 def ocr_upload():
 	if request.method == "POST":
 
+		if "function" not in request.form:
+			return "No function provided in form data.";
+
 		if request.form["function"] == "upload":
 
 			# trying to make the ./ocr directory
