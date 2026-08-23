@@ -2,7 +2,7 @@ from flask import Flask, request;
 from os import path, mkdir, scandir, remove
 from time import strftime
 
-from ocr.validation import Validator
+from .ocr.validation import Validator
 
 app = Flask(__name__);
 
