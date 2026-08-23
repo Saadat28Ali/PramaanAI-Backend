@@ -1,6 +1,26 @@
 from mysql.connector import Error
 from .connection import get_db_connection
 
+# Author: Saadat Ali ----------------------------
+def testQuery():
+	query: str = "SELECT * FROM documents";
+	conn = None;
+	try:
+		conn = get_db_connection();
+		cursor = conn.cursor();
+		cursor.execute(query, ());
+		result = cursor.fetchone();
+		return result;
+	except Error as e:
+		print(f"DB Error: {e}");
+		return None;
+	finally:
+		if conn and conn.is_connected():
+			cursor.close();
+			conn.close();
+
+# -----------------------------------------------
+
 # 1. Insert initial document record when uploaded
 def insert_document(uploaded_by, document_type, file_path, person_id=None, status="PENDING"):
     query = """

@@ -3,6 +3,7 @@ from os import path, mkdir, scandir, remove
 from time import strftime
 
 from .ocr.validation import Validator
+from .db.queries import testQuery
 
 app = Flask(__name__);
 
@@ -11,9 +12,16 @@ try:
 except FileExistsError:
 	pass;
 
-@app.route('/', methods=["GET"])
+@app.route('/', methods=["GET", "POST"])
 def hello_world():
-	return "Hello world";
+	if request.method == "GET":
+		return "The server is working";
+	elif request.method == "POST":
+		# db test
+		if "dbtest" in request.form:
+			result = testQuery();
+			print(result);
+			return(str(result));
 
 @app.route("/ocr", methods=["GET", "POST"])
 def ocr_upload():

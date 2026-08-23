@@ -6,6 +6,16 @@ from dotenv import load_dotenv
 # Load variables from root .env
 load_dotenv()
 
+# Author: Saadat Ali ----------------------------
+
+def testEnvVars():
+	for i in {"DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_PORT"}:
+		print(os.getenv(i));
+
+# testEnvVars(); # COMMENT THIS IN PROD
+
+# -----------------------------------------------
+
 try:
     db_pool = mysql.connector.pooling.MySQLConnectionPool(
         pool_name="pramaan_pool",
