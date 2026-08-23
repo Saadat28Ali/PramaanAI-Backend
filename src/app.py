@@ -14,14 +14,14 @@ except FileExistsError:
 
 @app.route('/', methods=["GET", "POST"])
 def hello_world():
-	if request.method == "GET":
-		return "The server is working";
-	elif request.method == "POST":
+
+	if request.method == "POST":
 		# db test
 		if "dbtest" in request.form:
 			result = testQuery();
 			print(result);
 			return(str(result));
+	return "This server is working";
 
 @app.route("/ocr", methods=["GET", "POST"])
 def ocr_upload():
