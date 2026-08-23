@@ -19,6 +19,16 @@ def testQuery():
 			cursor.close();
 			conn.close();
 
+def searchUser(email: str) -> bool:
+	# To be implemented
+
+	return True;
+
+def checkPass(pw: str) -> bool:
+	# To be implemented
+
+	return True;
+
 # -----------------------------------------------
 
 # 1. Insert initial document record when uploaded

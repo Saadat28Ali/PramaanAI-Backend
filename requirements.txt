@@ -3,3 +3,4 @@ gunicorn==26.1.0
 mysql-connector-python
 python-dotenv
 mysql-connector-python==26.7.0
+PyJWT==2.13.0

@@ -1,9 +1,11 @@
 from flask import Flask, request;
+
 from os import path, mkdir, scandir, remove
 from time import strftime
 
 from .ocr.validation import Validator
-from .db.queries import testQuery
+from .db.queries import testQuery, searchUser, checkPass
+from .jwt.token import createToken, verifyToken
 
 app = Flask(__name__);
 
@@ -73,10 +75,54 @@ def ocr_upload():
 	else:
 		return "Retry with POST method.";
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["POST"])
 def login():
-	if "username" in request.body and "password" in request.body:
-		pass;
+	try:
+		if "email" in request.form and "password" in request.form:
+			# search for username in DB
+			if searchUser(request.form["email"]):
+				if checkPass(request.form["password"]):
+					print("A");
+					# user exists and password is correct
+					# create and return JWT
+
+					return {
+						"email": True,
+						"pwd": True,
+						"token": createToken({
+							"email": request.form["email"],
+							"pwd": request.form["password"]
+						})
+					};
+				else:
+					# user exists but password is incorrect
+					print("B");
+					return {
+						"email": True,
+						"pwd": False,
+						"token": None
+					};
+			else:
+				# user does not exists
+				print("C");
+				return {
+						"email": False,
+						"pwd": False,
+						"token": None
+				};
+		else: return "Form-data must have username and password fields.";
+	except Exception as e:
+		print(e);
+		print(request);
+	return "";
+
+@app.route("/verifyToken", methods=["POST"])
+def _verifyToken():
+	if "token" in request.form:
+		return str(verifyToken(request.form["token"]));
+	else:
+		return "Form-data must have token field.";
+	return "";
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)
