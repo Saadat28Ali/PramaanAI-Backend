@@ -67,7 +67,8 @@ def ocr_upload():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-	if request.form[""]
+	if "username" in request.body and "password" in request.body:
+		pass;
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)
