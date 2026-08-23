@@ -82,7 +82,6 @@ def login():
 			# search for username in DB
 			if searchUser(request.form["email"]):
 				if checkPass(request.form["password"]):
-					print("A");
 					# user exists and password is correct
 					# create and return JWT
 
@@ -96,7 +95,6 @@ def login():
 					};
 				else:
 					# user exists but password is incorrect
-					print("B");
 					return {
 						"email": True,
 						"pwd": False,
@@ -104,7 +102,6 @@ def login():
 					};
 			else:
 				# user does not exists
-				print("C");
 				return {
 						"email": False,
 						"pwd": False,
