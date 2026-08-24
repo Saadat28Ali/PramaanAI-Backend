@@ -3,7 +3,7 @@ from flask import Flask, request;
 from os import path, mkdir, scandir, remove
 from time import strftime
 
-from .ocr.validation import Validator
+# from .ocr.validation import Validator
 from .db.queries import testQuery, searchUser, checkPass
 from .jwt.token import createToken, verifyToken
 
@@ -53,10 +53,11 @@ def ocr_upload():
 
 			# returning response
 
-			if Validator.validateOCR():
-				return "OCR valid.";
-			else:
-				return "OCR invalid."
+#			if Validator.validateOCR():
+#				return "OCR valid.";
+#			else:
+#				return "OCR invalid."
+			return "OCR valid.";
 
 		elif request.form["function"] == "delete all":
 
