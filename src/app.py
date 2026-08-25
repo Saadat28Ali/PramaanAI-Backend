@@ -131,7 +131,7 @@ def login():
 		print(request);
 	return "";
 
-@app.route("/register", method=["POST"])
+@app.route("/register", methods=["POST"])
 def registerUser():
 	if "email" in request.form and "password" in request.form and "user_type" in request.form:
 		# query DB to see if the user exists
