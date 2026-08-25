@@ -131,6 +131,30 @@ def login():
 		print(request);
 	return "";
 
+@app.route("/register", method=["POST"])
+def registerUser():
+	if "email" in request.form and "password" in request.form and "user_type" in request.form:
+		# query DB to see if the user exists
+		# if the user does not exist, query DB to create user
+		# if the user is created
+		return {
+			created: True,
+			email: request.form["email"],
+			password: request.form["password"],
+			user_type: request.form["user_type"],
+			msg: "User has been created."
+		};
+		# if the user is not created
+		return {
+			created: False,
+			email: request.form["email"],
+			password: request.form["password"],
+			user_type: request.form["user_type"],
+			msg: "User could not be created because <reason>."
+		};
+	else:
+		return "Request form-data must have email, password and user_type fields.";
+
 @app.route("/verifyToken", methods=["POST"])
 def _verifyToken():
 	if "token" in request.form:
