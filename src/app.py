@@ -1,9 +1,12 @@
 from flask import Flask, request;
+from numpy import frombuffer, uint8;
+from PIL import Image;
+from cv2 import imdecode, IMREAD_COLOR, imread;
 
 from os import path, mkdir, scandir, remove
 from time import strftime
 
-# from .ocr.validation import Validator
+from .ai.__init__ import *
 from .db.queries import testQuery, searchUser, checkPass
 from .jwt.token import createToken, verifyToken
 
@@ -48,10 +51,24 @@ def ocr_upload():
 			if "image" not in request.files:
 				return "No image uploaded."
 
-			with open(path.abspath(f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png"), "wb") as fh:
+			filename: str = f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png";
+			with open(path.abspath(filename), "wb") as fh:
 				request.files["image"].save(fh);
+				print(f"File saved as {filename}.");
 
 			# returning response
+
+			pipeline = DocuNetPipeline();
+			img = imread(filename, IMREAD_COLOR);
+
+			if img is None:
+				return "Invalid image.";
+
+			with open(path.abspath(filename), "rb") as fh:
+				result = pipeline.process(img);
+				result_dict: dict = result.to_dict();
+
+			return {**result_dict["tamper_detection"]};
 
 #			if Validator.validateOCR():
 #				return "OCR valid.";
