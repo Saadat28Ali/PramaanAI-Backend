@@ -8,6 +8,7 @@ from cv2 import imdecode, IMREAD_COLOR, imread;
 from os import path, mkdir, scandir, remove;
 from time import strftime;
 from copy import deepcopy;
+from .hash.hashf import hashIt;
 
 from .ai.__init__ import *
 from .db.queries import testQuery, searchUser, checkPass
@@ -151,6 +152,9 @@ def register():
 	if "email" in data and "password" in data and "role" in data:
 		# query DB to see if the user exists
 		# if the user does not exist, query DB to create user
+
+		hashed_pwd: str = hashIt(data["password"]);
+
 		# if the user is created
 
 		ret = buildRes(True, "User has been created.", {
