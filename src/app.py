@@ -1,14 +1,19 @@
+# IMPORTS
+# -----------------------------------------------
 from flask import Flask, request;
 from numpy import frombuffer, uint8;
 from PIL import Image;
 from cv2 import imdecode, IMREAD_COLOR, imread;
 
-from os import path, mkdir, scandir, remove
-from time import strftime
+from os import path, mkdir, scandir, remove;
+from time import strftime;
+from copy import deepcopy;
 
 from .ai.__init__ import *
 from .db.queries import testQuery, searchUser, checkPass
 from .jwt.token import createToken, verifyToken
+
+# ------------------------------------------------
 
 app = Flask(__name__);
 
@@ -17,23 +22,49 @@ try:
 except FileExistsError:
 	pass;
 
+RES_TEMPLATE = {
+	"sucess": False,
+	"msg": "Template msg",
+	"details": {}
+};
+
+# FUNCTIONS
+# ------------------------------------------------
+def buildRes(success = False, msg = "", details = {}) -> dict:
+	return {
+		"success": success,
+		"msg": msg,
+		"details": details
+	};
+
+# ENDPOINTS
+# ------------------------------------------------
+
 @app.route('/', methods=["GET", "POST"])
 def hello_world():
 
+	ret: dict = deepcopy(RES_TEMPLATE);
+	data: dict = request.get_json();
+
 	if request.method == "POST":
 		# db test
-		if "dbtest" in request.form:
-			result = testQuery();
-			print(result);
-			return(str(result));
-	return "This server is working";
+		if "dbtest" in data:
+			result: bool = testQuery();
+			ret = buildRes(result, "DB is working." if result else "DB failed.");
+	else:
+		ret = buildRes(True, "The server is working.");
+
+	return ret;
 
 @app.route("/ocr", methods=["GET", "POST"])
 def ocr_upload():
+
+	ret: dict = {};
+
 	if request.method == "POST":
 
 		if "function" not in request.form:
-			return "No function provided in form data.";
+			ret = buildRes(False, "No functions provided in form data");
 
 		if request.form["function"] == "validate":
 
@@ -49,7 +80,7 @@ def ocr_upload():
 			# the filename is based on time of upload
 
 			if "image" not in request.files:
-				return "No image uploaded."
+				ret = buildRes(msg="No image uploaded");
 
 			filename: str = f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png";
 			with open(path.abspath(filename), "wb") as fh:
@@ -62,19 +93,13 @@ def ocr_upload():
 			img = imread(filename, IMREAD_COLOR);
 
 			if img is None:
-				return "Invalid image.";
+				ret = buildRes(msg = "Invalid image.");
 
 			with open(path.abspath(filename), "rb") as fh:
 				result = pipeline.process(img);
 				result_dict: dict = result.to_dict();
 
-			return {**result_dict["tamper_detection"]};
-
-#			if Validator.validateOCR():
-#				return "OCR valid.";
-#			else:
-#				return "OCR invalid."
-			return "OCR valid.";
+			ret = buildRes(True, "Model run.", {**result_dict["tamper_detection"]});
 
 		elif request.form["function"] == "delete all":
 
@@ -85,83 +110,81 @@ def ocr_upload():
 				if path.isfile(d):
 					remove(d);
 
-			return "Deleted all files from server.";
+			ret = buildRes(True, "Deleted all files from server.");
 
 		else:
-			return "Invalid function."
+			ret = buildRes(msg="Invalid function.");
 
 	else:
-		return "Retry with POST method.";
+		ret = buildRes(msg="Retry with POST method.");
+
+	return ret;
 
 @app.route("/login", methods=["POST"])
 def login():
-	try:
-		if "email" in request.form and "password" in request.form:
-			# search for username in DB
-			if searchUser(request.form["email"]):
-				if checkPass(request.form["password"]):
-					# user exists and password is correct
-					# create and return JWT
 
-					return {
-						"email": True,
-						"pwd": True,
-						"token": createToken({
-							"email": request.form["email"],
-							"pwd": request.form["password"]
-						})
-					};
-				else:
-					# user exists but password is incorrect
-					return {
-						"email": True,
-						"pwd": False,
-						"token": None
-					};
-			else:
-				# user does not exists
-				return {
-						"email": False,
-						"pwd": False,
-						"token": None
-				};
-		else: return "Form-data must have username and password fields.";
-	except Exception as e:
-		print(e);
-		print(request);
-	return "";
+	ret: dict = deepcopy(RES_TEMPLATE);
+
+	data: dict = request.get_json();
+
+	if "email" in data and "password" in data and "role" in data:
+		# query DB to find user
+		# if user is found compare passed details
+		# else
+
+		ret = buildRes(msg="User not found", details={
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"]
+		});
+	else:
+		ret = buildRes(msg="Request JSON body must have keys email, password and role.");
+
+	return ret;
 
 @app.route("/register", methods=["POST"])
-def registerUser():
-	if "email" in request.form and "password" in request.form and "user_type" in request.form:
+def register():
+
+	ret: dict = deepcopy(RES_TEMPLATE);
+	data: dict = request.get_json();
+
+	if "email" in data and "password" in data and "role" in data:
 		# query DB to see if the user exists
 		# if the user does not exist, query DB to create user
 		# if the user is created
-		return {
-			created: True,
-			email: request.form["email"],
-			password: request.form["password"],
-			user_type: request.form["user_type"],
-			msg: "User has been created."
-		};
+
+		ret = buildRes(True, "User has been created.", {
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"]
+		});
+
 		# if the user is not created
-		return {
-			created: False,
-			email: request.form["email"],
-			password: request.form["password"],
-			user_type: request.form["user_type"],
-			msg: "User could not be created because <reason>."
-		};
+		ret = buildRes(msg="User could not be created because <reason>", details={
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"]
+		});
+
 	else:
-		return "Request form-data must have email, password and user_type fields.";
+		ret = buildRes(msg="Request JSON data must have keys email, password and role.");
+
+	return ret;
 
 @app.route("/verifyToken", methods=["POST"])
 def _verifyToken():
-	if "token" in request.form:
-		return str(verifyToken(request.form["token"]));
-	else:
-		return "Form-data must have token field.";
-	return "";
 
+	ret: dict = deepcopy(RES_TEMPLATE);
+	data: dict = request.get_json();
+
+	if "token" in data:
+		ret = buildRes(verifyToken(data["token"]), "Token verification complete.");
+	else:
+		ret = buildRes(msg="Form-data must have token field.");
+
+	return ret;
+
+# MAIN
+# ------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)

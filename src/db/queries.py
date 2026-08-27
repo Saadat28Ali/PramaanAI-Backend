@@ -2,7 +2,7 @@ from mysql.connector import Error
 from .connection import get_db_connection
 
 # Author: Saadat Ali ----------------------------
-def testQuery():
+def testQuery() -> bool:
 	query: str = "SELECT * FROM documents";
 	conn = None;
 	try:
@@ -10,10 +10,10 @@ def testQuery():
 		cursor = conn.cursor();
 		cursor.execute(query, ());
 		result = cursor.fetchone();
-		return result;
+		return True;
 	except Error as e:
 		print(f"DB Error: {e}");
-		return None;
+		return False;
 	finally:
 		if conn and conn.is_connected():
 			cursor.close();
