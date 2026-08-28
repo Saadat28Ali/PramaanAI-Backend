@@ -2,7 +2,7 @@ from mysql.connector import Error
 from .connection import get_db_connection
 
 # Author: Saadat Ali ----------------------------
-def testQuery() -> bool:
+def testQuery():
 	query: str = "SELECT * FROM documents";
 	conn = None;
 	try:
@@ -10,24 +10,61 @@ def testQuery() -> bool:
 		cursor = conn.cursor();
 		cursor.execute(query, ());
 		result = cursor.fetchone();
-		return True;
+		return result;
 	except Error as e:
 		print(f"DB Error: {e}");
-		return False;
+		return None;
 	finally:
 		if conn and conn.is_connected():
 			cursor.close();
 			conn.close();
 
-def searchUser(email: str) -> bool:
-	# To be implemented
+def searchUser(email: str) -> dict | None:
+    """
+    Fetches full user record as a dictionary. Returns None if not found.
+    """
+    query = "SELECT user_id, name, email, password_hash, role FROM users WHERE email = %s LIMIT 1"
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query, (email.strip().lower(),))
+        return cursor.fetchone()
+    except Error as e:
+        print(f"[DB ERROR] get_user_by_email: {e}")
+        return None
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
-	return True;
+def checkPass(email: str, raw_password: str) -> bool:
+    """
+    Verifies the user's password against the stored password hash in the database.
+    Returns True if valid, False otherwise.
+    """
+    # Note: Requires email to find which user's password to compare against
+    query = "SELECT password_hash FROM users WHERE email = %s LIMIT 1"
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, (email.strip().lower(),))
+        result = cursor.fetchone()
 
-def checkPass(pw: str) -> bool:
-	# To be implemented
-
-	return True;
+        if result:
+            stored_hash = result[0]
+            # Replace with your hashing verification method (e.g., bcrypt / passlib / argon2)
+            # Example using passlib/bcrypt: return pwd_context.verify(raw_password, stored_hash)
+            return stored_hash == raw_password
+        return False
+    except Error as e:
+        print(f"[DB ERROR] checkPass: {e}")
+        return False
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 # -----------------------------------------------
 

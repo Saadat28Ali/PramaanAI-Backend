@@ -132,14 +132,37 @@ def login():
 
 	if "email" in data and "password" in data and "role" in data:
 		# query DB to find user
-		# if user is found compare passed details
-		# else
 
-		ret = buildRes(msg="User not found", details={
-			"email": data["email"],
-			"password": data["password"],
-			"role": data["role"]
-		});
+		search_result: dict | None = searchUser(data["email"]);
+		if search_result == None:
+			# user not found
+			ret = buildRes(msg="User not found", details={
+				"email": data["email"],
+				"password": data["password"],
+				"role": data["role"]
+			});
+		else:
+			# user found
+			if search_result["email"] == data["email"] and search_result["password_hash"] == data["password"]:
+				# password correct
+				ret = buildRes(msg="Password verified.", details={
+					"email": data["email"],
+					"password": data["password"],
+					"role": data["role"],
+					"token": createToken({
+						"email": data["email"],
+						"password": data["password"],
+						"role": data["role"]
+					})
+				});
+			else:
+				# password incorrect
+				ret = buildRes(msg="Password incorrect.", details={
+					"email": data["email"],
+					"password": data["password"],
+					"role": data["role"]
+				});
+
 	else:
 		ret = buildRes(msg="Request JSON body must have keys email, password and role.");
 
@@ -153,25 +176,24 @@ def register():
 
 	if "email" in data and "password" in data and "role" in data:
 		# query DB to see if the user exists
-		# if the user does not exist, query DB to create user
 
-		hashed_pwd: str = hashIt(data["password"]);
+		search_result: dict | None = searchUser(data["email"]);
+		if search_result == None:
+			# user does not exist
 
-		# if the user is created
-
-		ret = buildRes(True, "User has been created.", {
-			"email": data["email"],
-			"password": data["password"],
-			"role": data["role"]
-		});
-
-		# if the user is not created
-		ret = buildRes(msg="User could not be created because <reason>", details={
-			"email": data["email"],
-			"password": data["password"],
-			"role": data["role"]
-		});
-
+			# create user in DB
+			ret = buildRes(True, "User has been created.", {
+				"email": data["email"],
+				"password": data["password"],
+				"role": data["role"]
+			});
+		else:
+			# user already exists
+			ret = buildRes(msg="User already exists", details={
+				"email": data["email"],
+				"password": data["password"],
+				"role": data["role"]
+			});
 	else:
 		ret = buildRes(msg="Request JSON data must have keys email, password and role.");
 
