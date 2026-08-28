@@ -88,6 +88,8 @@ def ocr_upload():
 				request.files["image"].save(fh);
 				print(f"File saved as {filename}.");
 
+			# saving document file in DB
+
 			# returning response
 
 			pipeline = DocuNetPipeline();
