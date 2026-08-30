@@ -3,3 +3,8 @@ ocrfiles/
 src/ocr/__pycache__/
 .env
 venv/
+
+venv/
+__pycache__/
+*.pyc
+.env

@@ -13,6 +13,8 @@ from .hash.hashf import hashIt;
 from .ai.__init__ import *
 from .db.queries import testQuery, searchUser, checkPass
 from .jwt.token import createToken, verifyToken
+from db.queries import insert_document_and_screening
+from db.queries import get_all_audit_logs
 
 # ------------------------------------------------
 
@@ -216,3 +218,48 @@ def _verifyToken():
 # ------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)
+
+
+
+@app.post("/api/screenings/create")
+def create_screening_entry(data: dict):
+    result = insert_document_and_screening(
+        uploaded_by=data.get("uploaded_by"),
+        document_type=data.get("document_type"),
+        file_path=data.get("file_path"),
+        officer_id=data.get("officer_id"),
+        person_id=data.get("person_id"),
+        risk_score=data.get("risk_score"),
+        decision=data.get("decision", "verified"),
+        status="COMPLETED"
+    )
+    if result:
+        return {"status": "success", "data": result}
+    return {"status": "error", "message": "Failed to record screening details"}, 500
+
+
+
+@app.get("/api/audit-history")
+def get_audit_history(limit: int = 50, page: int = 1):
+    offset = (page - 1) * limit
+    logs = get_all_audit_logs(limit=limit, offset=offset)
+    return {"status": "success", "data": logs}
+
+
+@app.route("/register", methods=["POST"])
+def register():
+    data = request.get_json() or {}
+    name = data.get("name")
+    email = data.get("email")
+    password = data.get("password")
+    role = data.get("role", "officer")
+
+    if not name or not email or not password:
+        return jsonify({"status": "error", "message": "Name, email, and password are required"}), 400
+
+    result = register_user(name=name, email=email, raw_password=password, role=role)
+
+    if not result["success"]:
+        return jsonify({"status": "error", "message": result["message"]}), 400
+
+    return jsonify({"status": "success", "message": result["message"], "user_id": result["user_id"]}), 201
