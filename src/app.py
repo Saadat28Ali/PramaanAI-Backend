@@ -12,7 +12,7 @@ from copy import deepcopy;
 from .hash.hashf import hashIt;
 
 from .ai.__init__ import *
-from .db.queries import testQuery, createUser, searchUser, insertDocument, gAuditLogsByUser;
+from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser;
 from .jwt.token import createToken;
 from .util import getTokenData;
 
@@ -295,11 +295,8 @@ def getAuditHistory():
 	# --------------------------------------------------
 	return buildRes(True, "Fetched audit logs by user.", audit_logs_fetch_result["rows"]);
 
-@app.route("/dashboard", methods=["POST"])
-def dashboard():
-	
-
 # MAIN
 # ------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000);
+
