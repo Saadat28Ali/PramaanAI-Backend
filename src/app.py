@@ -209,7 +209,7 @@ def register():
 		return buildRes(msg="User could not be found due to DB error.", details={
 			"dberror": search_result["error"]
 		});
-	user_data: dict | None = search_result;
+	user_data: dict | None = search_result["row"];
 
 	if user_data is not None:
 		return buildRes(msg="User already exists.", details={

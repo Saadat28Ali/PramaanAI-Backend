@@ -18,7 +18,7 @@ def testQuery():
 			cursor.close();
 			conn.close();
 
-def searchUser(email: str) -> dict | None:
+def searchUser(email: str) -> dict:
 	"""
 	Fetches full user record as a dictionary. Returns None if not found.
 	"""
