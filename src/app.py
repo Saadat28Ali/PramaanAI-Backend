@@ -11,10 +11,9 @@ from copy import deepcopy;
 from .hash.hashf import hashIt;
 
 from .ai.__init__ import *
-from .db.queries import testQuery, searchUser, checkPass
-from .jwt.token import createToken, verifyToken
-from db.queries import insert_document_and_screening
-from db.queries import get_all_audit_logs
+from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser;
+from .jwt.token import createToken;
+from .util import getTokenData;
 
 # ------------------------------------------------
 
@@ -45,7 +44,6 @@ def buildRes(success = False, msg = "", details = {}) -> dict:
 
 @app.route('/', methods=["GET", "POST"])
 def hello_world():
-
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
@@ -59,115 +57,136 @@ def hello_world():
 
 	return ret;
 
-@app.route("/ocr", methods=["GET", "POST"])
+@app.route("/ocr", methods=["POST"])
 def ocr_upload():
+	ret: dict = deepcopy(RES_TEMPLATE);
 
-	ret: dict = {};
+	# Getting token data
+	# --------------------------------------------------
+	token_data_result: dict = getTokenData(request);
+	if not token_data_result["success"]:
+		return buildRes(msg="Could not get token data.", details={
+			"error": token_data_result["error"]
+		});
 
-	if request.method == "POST":
+	token_data: dict = token_data_result["token_data"];
 
-		if "function" not in request.form:
-			ret = buildRes(False, "No functions provided in form data");
+	# Getting user data
+	# --------------------------------------------------
 
-		if request.form["function"] == "validate":
+	user_data_fetch_result: dict = searchUser(token_data["email"]);
+	if (not user_data_fetch_result["success"]):
+		return buildRes(False, "Could not find user due to DB error.", {
+			"dberror": user_data_fetch_result["error"]
+		});
 
-			# trying to make the ./ocrfiles directory
-			# if it already exists, this part is skipped
+	user_data = user_data_fetch_result["row"];
+	if (user_data is None):
+		return buildRes(False, "Could not find user.");
 
-			try:
-				mkdir(path.abspath("./ocrfiles"));
-			except FileExistsError:
-				pass;
+	# Saving the image file
+	# --------------------------------------------------
+	# trying to make the ./ocrfiles directory
+	# if it already exists, this part is skipped
 
-			# saving the received file in ./ocrfiles
-			# the filename is based on time of upload
+	try:
+		mkdir(path.abspath("./ocrfiles"));
+	except FileExistsError:
+		pass;
 
-			if "image" not in request.files:
-				ret = buildRes(msg="No image uploaded");
+	# saving the received file in ./ocrfiles
+	# the filename is based on time of upload
 
-			filename: str = f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png";
-			with open(path.abspath(filename), "wb") as fh:
-				request.files["image"].save(fh);
-				print(f"File saved as {filename}.");
+	if "image" not in request.files:
+		ret = buildRes(msg="No image uploaded");
 
-			# saving document file in DB
+	filename: str = f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png";
+	with open(path.abspath(filename), "wb") as fh:
+		request.files["image"].save(fh);
+		print(f"File saved as {filename}.");
 
-			# returning response
+	# Inserting document in DB
+	# --------------------------------------------------
+	insert_document_result: dict = insertDocument(
+		user_id = user_data["user_id"],
+		document_type = "passport",
+		file_path = path.abspath(filename),
+	);
+	if (not insert_document_result["success"]):
+		return buildRes(msg="Could not add document to DB.", details={
+			"dberror": result["error"]
+		});
 
-			pipeline = DocuNetPipeline();
-			img = imread(filename, IMREAD_COLOR);
+	# Passing image data into model
+	# --------------------------------------------------
+	pipeline = DocuNetPipeline();
+	img = imread(filename, IMREAD_COLOR);
 
-			if img is None:
-				ret = buildRes(msg = "Invalid image.");
+	if img is None:
+		ret = buildRes(msg = "Invalid image.");
 
-			with open(path.abspath(filename), "rb") as fh:
-				result = pipeline.process(img);
-				result_dict: dict = result.to_dict();
+	model_result_dict: dict = {};
+	with open(path.abspath(filename), "rb") as fh:
+		model_result = pipeline.process(img);
+		model_result_dict: dict = result.to_dict();
 
-			ret = buildRes(True, "Model run.", {**result_dict["tamper_detection"]});
+	# Inserting screening in DB
+	# --------------------------------------------------
 
-		elif request.form["function"] == "delete all":
+	# Returning final result
+	# --------------------------------------------------
 
-			# deleting all files in ./ocrfiles subdir
-
-			for d in scandir(path.abspath("./ocrfiles/")):
-				print(d);
-				if path.isfile(d):
-					remove(d);
-
-			ret = buildRes(True, "Deleted all files from server.");
-
-		else:
-			ret = buildRes(msg="Invalid function.");
-
-	else:
-		ret = buildRes(msg="Retry with POST method.");
-
-	return ret;
+#	ret = buildRes(True, "Model run.", {**model_result_dict["tamper_detection"]});
+	return buildRes(True, "Model run.", {**model_result_dict});
 
 @app.route("/login", methods=["POST"])
 def login():
-
 	ret: dict = deepcopy(RES_TEMPLATE);
-
 	data: dict = request.get_json();
 
-	if "email" in data and "password" in data and "role" in data:
-		# query DB to find user
+	if not ("email" in data and "password" in data and "role" in data):
+		return buildRes(msg="Request JSON body must have keys email, password and role.");
 
-		search_result: dict | None = searchUser(data["email"]);
-		if search_result == None:
-			# user not found
-			ret = buildRes(msg="User not found", details={
+	# Getting user data
+	# --------------------------------------------------
+	search_result: dict = searchUser(data["email"]);
+	if not search_result["success"]:
+		return buildRes(msg="User could not be found due to DB Error.", details={
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"],
+			"dberror": search_result["error"]
+		});
+
+	user_data: dict | None = search_result["row"];
+	if user_data is None:
+		return buildRes(msg="User not found.", details={
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"],
+		});
+
+	# Matching password and returning final result
+	# --------------------------------------------------
+	if user_data["password_hash"] == data["password"]:
+		# password correct
+		ret = buildRes(msg="Password verified.", details={
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"],
+			"token": createToken({
 				"email": data["email"],
 				"password": data["password"],
 				"role": data["role"]
-			});
-		else:
-			# user found
-			if search_result["email"] == data["email"] and search_result["password_hash"] == data["password"]:
-				# password correct
-				ret = buildRes(msg="Password verified.", details={
-					"email": data["email"],
-					"password": data["password"],
-					"role": data["role"],
-					"token": createToken({
-						"email": data["email"],
-						"password": data["password"],
-						"role": data["role"]
-					})
-				});
-			else:
-				# password incorrect
-				ret = buildRes(msg="Password incorrect.", details={
-					"email": data["email"],
-					"password": data["password"],
-					"role": data["role"]
-				});
-
+			})
+		});
 	else:
-		ret = buildRes(msg="Request JSON body must have keys email, password and role.");
-
+		# password incorrect
+		ret = buildRes(msg="Password incorrect.", details={
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"]
+		});
 	return ret;
 
 @app.route("/register", methods=["POST"])
@@ -176,90 +195,106 @@ def register():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
-	if "email" in data and "password" in data and "role" in data:
-		# query DB to see if the user exists
+	if not ("name" in data and "email" in data and "password" in data and "role" in data):
+		return buildRes(msg="Request JSON data must have keys email, password and role.");
 
-		search_result: dict | None = searchUser(data["email"]);
-		if search_result == None:
-			# user does not exist
+	# Getting user data
+	# --------------------------------------------------
+	search_result: dict = searchUser(data["email"]);
+	if not search_result["success"]:
+		return buildRes(msg="User could not be found due to DB error.", details={
+			"dberror": search_result["error"]
+		});
+	user_data: dict | None = search_result;
 
-			# create user in DB
-			ret = buildRes(True, "User has been created.", {
-				"email": data["email"],
-				"password": data["password"],
-				"role": data["role"]
-			});
-		else:
-			# user already exists
-			ret = buildRes(msg="User already exists", details={
-				"email": data["email"],
-				"password": data["password"],
-				"role": data["role"]
-			});
-	else:
-		ret = buildRes(msg="Request JSON data must have keys email, password and role.");
+	if user_data is not None:
+		return buildRes(msg="User already exists.", details={
+			data["email"],
+			data["name"],
+			data["password"],
+			data["role"]
+		});
 
-	return ret;
+	# Creating new user in DB
+	# --------------------------------------------------
+	if (data["role"] not in {"officer", "admin"}):
+		data["role"] = "officer";
+
+	create_user_result: dict = createUser(data["name"], data["email"], data["password"], data["role"]);
+	if not create_user_result["success"]:
+		return buildRes(False, "User could not be created. DB Error.", {
+			"name": data["name"],
+			"email": data["email"],
+			"password": data["password"],
+			"role": data["role"],
+			"dberror": result["message"]
+		});
+
+	# Returning final result
+	# --------------------------------------------------
+	return buildRes(True, "User has been created.", {
+		"name": data["name"],
+		"email": data["email"],
+		"password": data["password"],
+		"role": data["role"]
+	});
 
 @app.route("/verifyToken", methods=["POST"])
-def _verifyToken():
+def verifyJWTToken():
 
+	ret: dict = deepcopy(RES_TEMPLATE);
+
+	# Getting token data
+	# --------------------------------------------------
+	token_data_result: dict = getTokenData(request);
+	if not token_data_result["success"]:
+		return buildRes(msg="Could not get token data.", details={
+			"error": token_data_result["error"]
+		});
+
+	return buildRes(True, "Token is valid.", {});
+
+@app.route("/audit_log", methods=["POST"])
+def getAuditHistory():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
-	if "token" in data:
-		ret = buildRes(verifyToken(data["token"]), "Token verification complete.");
-	else:
-		ret = buildRes(msg="Form-data must have token field.");
+	# Getting token data
+	# --------------------------------------------------
+	token_data_result: dict = getTokenData(request);
+	if not token_data_result["success"]:
+		return buildRes(msg="Could not get token data.", details={
+			"error": token_data_result["error"]
+		});
 
-	return ret;
+	token_data: dict = token_data_result["token_data"];
+
+	# Getting user data
+	# --------------------------------------------------
+
+	user_data_fetch_result: dict = searchUser(token_data["email"]);
+	if (not user_data_fetch_result["success"]):
+		return buildRes(False, "Could not find user due to DB error.", {
+			"dberror": user_data_fetch_result["error"]
+		});
+
+	user_data = user_data_fetch_result["row"];
+	if (user_data is None):
+		return buildRes(False, "Could not find user.");
+
+	# Fetching audit logs
+	# --------------------------------------------------
+	audit_logs_fetch_result: dict = getAuditLogsByUser(user_data["user_id"], data.get("limit"), data.get("offset"));
+	if (not audit_logs_fetch_result["success"]):
+		return buildRes(msg="Could not fetch audit logs due to DB error.", details={
+			"dberror": audit_logs_fetch_result["error"]
+		});
+
+	# Returning final result
+	# --------------------------------------------------
+	return buildRes(True, "Fetched audit logs by user.", audit_logs_fetch_result["rows"]);
 
 # MAIN
 # ------------------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=5000)
-
-
-
-@app.post("/api/screenings/create")
-def create_screening_entry(data: dict):
-    result = insert_document_and_screening(
-        uploaded_by=data.get("uploaded_by"),
-        document_type=data.get("document_type"),
-        file_path=data.get("file_path"),
-        officer_id=data.get("officer_id"),
-        person_id=data.get("person_id"),
-        risk_score=data.get("risk_score"),
-        decision=data.get("decision", "verified"),
-        status="COMPLETED"
-    )
-    if result:
-        return {"status": "success", "data": result}
-    return {"status": "error", "message": "Failed to record screening details"}, 500
-
-
-
-@app.get("/api/audit-history")
-def get_audit_history(limit: int = 50, page: int = 1):
-    offset = (page - 1) * limit
-    logs = get_all_audit_logs(limit=limit, offset=offset)
-    return {"status": "success", "data": logs}
-
-
-@app.route("/register", methods=["POST"])
-def register():
-    data = request.get_json() or {}
-    name = data.get("name")
-    email = data.get("email")
-    password = data.get("password")
-    role = data.get("role", "officer")
-
-    if not name or not email or not password:
-        return jsonify({"status": "error", "message": "Name, email, and password are required"}), 400
-
-    result = register_user(name=name, email=email, raw_password=password, role=role)
-
-    if not result["success"]:
-        return jsonify({"status": "error", "message": result["message"]}), 400
-
-    return jsonify({"status": "success", "message": result["message"], "user_id": result["user_id"]}), 201
+    app.run(debug=True, host="127.0.0.1", port=5000);

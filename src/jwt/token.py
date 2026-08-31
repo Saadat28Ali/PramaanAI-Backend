@@ -16,3 +16,11 @@ def verifyToken(token: str) -> bool:
 		print(f"Token error: {e}");
 		return False;
 	return True;
+
+def getPayload(token: str) -> dict:
+	try:
+		payload: dict = jwt.decode(token, getenv("SECRET"), algorithms=["HS256"]);
+	except jwt.exceptions.InvalidTokenError as e:
+		print(f"Token error: {e}");
+		return {};
+	return payload;
