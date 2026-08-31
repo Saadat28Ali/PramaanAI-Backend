@@ -27,7 +27,7 @@ except FileExistsError:
 	pass;
 
 RES_TEMPLATE = {
-	"sucess": False,
+	"success": False,
 	"msg": "Template msg",
 	"details": {}
 };
@@ -53,7 +53,7 @@ def hello_world():
 		# db test
 		if "dbtest" in data:
 			result: bool = testQuery();
-			ret = buildRes(result, "DB is working." if result else "DB failed.");
+			ret = buildRes(result, "DB is working." if result else "DB failed.", {});
 	else:
 		ret = buildRes(True, "The server is working.");
 
@@ -101,6 +101,7 @@ def ocr_upload():
 
 	if "image" not in request.files:
 		ret = buildRes(msg="No image uploaded");
+		return ret;
 
 	filename: str = f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png";
 	with open(path.abspath(filename), "wb") as fh:
@@ -116,7 +117,7 @@ def ocr_upload():
 	);
 	if (not insert_document_result["success"]):
 		return buildRes(msg="Could not add document to DB.", details={
-			"dberror": result["error"]
+			"dberror": insert_document_result["error"]
 		});
 
 	# Passing image data into model
@@ -126,11 +127,12 @@ def ocr_upload():
 
 	if img is None:
 		ret = buildRes(msg = "Invalid image.");
+		return ret;
 
 	model_result_dict: dict = {};
 	with open(path.abspath(filename), "rb") as fh:
 		model_result = pipeline.process(img);
-		model_result_dict: dict = result.to_dict();
+		model_result_dict: dict = model_result.to_dict();
 
 	# Inserting screening in DB
 	# --------------------------------------------------
@@ -211,10 +213,10 @@ def register():
 
 	if user_data is not None:
 		return buildRes(msg="User already exists.", details={
-			data["email"],
-			data["name"],
-			data["password"],
-			data["role"]
+			"email": data["email"],
+			"name": data["name"],
+			"password": data["password"],
+			"role": data["role"]
 		});
 
 	# Creating new user in DB
@@ -229,7 +231,7 @@ def register():
 			"email": data["email"],
 			"password": data["password"],
 			"role": data["role"],
-			"dberror": result["message"]
+			"dberror": create_user_result["message"]
 		});
 
 	# Returning final result
