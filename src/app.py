@@ -1,6 +1,7 @@
 # IMPORTS
 # -----------------------------------------------
 from flask import Flask, request;
+from flask_cors import CORS;
 from numpy import frombuffer, uint8;
 from PIL import Image;
 from cv2 import imdecode, IMREAD_COLOR, imread;
@@ -11,13 +12,14 @@ from copy import deepcopy;
 from .hash.hashf import hashIt;
 
 from .ai.__init__ import *
-from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser;
+from .db.queries import testQuery, createUser, searchUser, insertDocument, gAuditLogsByUser;
 from .jwt.token import createToken;
 from .util import getTokenData;
 
 # ------------------------------------------------
 
 app = Flask(__name__);
+CORS(app);
 
 try:
 	mkdir(path.abspath("./ocrfiles"));
@@ -241,7 +243,6 @@ def register():
 
 @app.route("/verifyToken", methods=["POST"])
 def verifyJWTToken():
-
 	ret: dict = deepcopy(RES_TEMPLATE);
 
 	# Getting token data
@@ -293,6 +294,10 @@ def getAuditHistory():
 	# Returning final result
 	# --------------------------------------------------
 	return buildRes(True, "Fetched audit logs by user.", audit_logs_fetch_result["rows"]);
+
+@app.route("/dashboard", methods=["POST"])
+def dashboard():
+	
 
 # MAIN
 # ------------------------------------------------
