@@ -11,7 +11,7 @@ from time import strftime;
 from copy import deepcopy;
 from .hash.hashf import hashIt;
 
-from .ai.__init__ import *
+# from .ai.__init__ import *
 from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser;
 from .jwt.token import createToken;
 from .util import getTokenData;
