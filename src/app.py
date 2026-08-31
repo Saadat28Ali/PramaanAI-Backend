@@ -15,6 +15,7 @@ from .ai.__init__ import *
 from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser;
 from .jwt.token import createToken;
 from .util import getTokenData;
+from .external_ai.main import external_ocr;
 
 # ------------------------------------------------
 
@@ -60,7 +61,7 @@ def hello_world():
 	return ret;
 
 @app.route("/ocr", methods=["POST"])
-def ocr_upload():
+async def ocr_upload():
 	ret: dict = deepcopy(RES_TEMPLATE);
 
 	# Getting token data
@@ -122,17 +123,20 @@ def ocr_upload():
 
 	# Passing image data into model
 	# --------------------------------------------------
-	pipeline = DocuNetPipeline();
-	img = imread(filename, IMREAD_COLOR);
+#	pipeline = DocuNetPipeline();
+#	img = imread(filename, IMREAD_COLOR);
+#
+#	if img is None:
+#		ret = buildRes(msg = "Invalid image.");
+#		return ret;
+#
+#	model_result_dict: dict = {};
+#	with open(path.abspath(filename), "rb") as fh:
+#		model_result = pipeline.process(img);
+#		model_result_dict: dict = model_result.to_dict();
 
-	if img is None:
-		ret = buildRes(msg = "Invalid image.");
-		return ret;
-
-	model_result_dict: dict = {};
-	with open(path.abspath(filename), "rb") as fh:
-		model_result = pipeline.process(img);
-		model_result_dict: dict = model_result.to_dict();
+	result = await external_ocr(filename);
+	print(result);
 
 	# Inserting screening in DB
 	# --------------------------------------------------
@@ -141,7 +145,8 @@ def ocr_upload():
 	# --------------------------------------------------
 
 #	ret = buildRes(True, "Model run.", {**model_result_dict["tamper_detection"]});
-	return buildRes(True, "Model run.", {**model_result_dict});
+#	return buildRes(True, "Model run.", {**model_result_dict});
+	return buildRes(True, "Model run.", result["prediction"]["tamper_detection"]);
 
 @app.route("/login", methods=["POST"])
 def login():
