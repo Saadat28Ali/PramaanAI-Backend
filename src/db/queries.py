@@ -95,9 +95,9 @@ def insertDocument(
 	try:
 		conn = get_db_connection()
 		cursor = conn.cursor(dictionary = True)
-		result: dict = cursor.execute(query, (user_id, document_type, file_path, status))
-		document_id=result["document_id"];
-		conn.commit()
+		cursor.execute(query, (user_id, document_type, file_path, status))
+		conn.commit();
+		document_id = cursor.lastrowid;
 		return {
 			"success": True,
 			"document_id": document_id
@@ -504,7 +504,7 @@ def getAuditLogsByUser(user_id: int, limit: int = 20, offset: int = 0) -> list[d
 		cursor.execute(query, (user_id, limit, offset))
 		return {
 			"success": True,
-			"rows": cursor.fetchAll()
+			"rows": cursor.fetchall()
 		};
 	except Error as e:
 		print(f"[DB ERROR] get_audit_logs_by_user: {e}")
