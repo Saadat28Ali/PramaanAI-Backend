@@ -174,7 +174,7 @@ def login():
 	# --------------------------------------------------
 	if user_data["password_hash"] == data["password"]:
 		# password correct
-		ret = buildRes(msg="Password verified.", details={
+		ret = buildRes(success=True, msg="Password verified.", details={
 			"email": data["email"],
 			"password": data["password"],
 			"role": data["role"],
