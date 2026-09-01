@@ -2,7 +2,7 @@ from os import path;
 import httpx;
 
 async def external_ocr(filename: str):
-	async with httpx.AsyncClient(timeout = 10.0) as client:
+	async with httpx.AsyncClient(timeout = 20.0) as client:
 		with open(path.abspath(filename), "rb") as f:
 			files = {"image": (path.abspath(filename), f, "application/octet-stream")};
 			response = await client.post(
