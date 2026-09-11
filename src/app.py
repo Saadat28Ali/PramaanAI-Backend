@@ -2,9 +2,6 @@
 # -----------------------------------------------
 from flask import Flask, request;
 from flask_cors import CORS;
-from numpy import frombuffer, uint8;
-from PIL import Image;
-from cv2 import imdecode, IMREAD_COLOR, imread;
 
 from os import path, mkdir, scandir, remove;
 from time import strftime;
