@@ -543,7 +543,12 @@ def insert_audit_log(user_id: int, document_id: int = None, action: str = None, 
 			cursor.close()
 			conn.close()
 
-def createUser(name: str, email: str, raw_password: str, role: str = "officer") -> dict:
+def createUser(
+	name: str,
+	email: str,
+	raw_password: str,
+	role: str = "officer"
+) -> dict:
 	"""
 	Registers a new user in the users table.
 	Returns a dict with success status and user_id/message.
