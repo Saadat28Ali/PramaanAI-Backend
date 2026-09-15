@@ -3,7 +3,7 @@
 from flask import Flask, request;
 from flask_cors import CORS;
 
-from os import path, mkdir, scandir, remove;
+from os import path, mkdir, scandir, remove, getcwd;
 from time import strftime;
 from copy import deepcopy;
 from .hash.hashf import hashIt;
@@ -14,13 +14,19 @@ from .jwt.token import createToken;
 from .util import getTokenData;
 from .external_ai.main import external_ocr;
 
+
+# GLOBALS
+# ------------------------------------------------
+
+ROOT_DIR: str = path.abspath(getcwd());
+
 # ------------------------------------------------
 
 app = Flask(__name__);
 CORS(app);
 
 try:
-	mkdir(path.abspath("./ocrfiles"));
+	mkdir(path.abspath(path.join(ROOT_DIR,"./ocrfiles")));
 except FileExistsError:
 	pass;
 
@@ -90,7 +96,7 @@ async def ocr_upload():
 	# if it already exists, this part is skipped
 
 	try:
-		mkdir(path.abspath("./ocrfiles"));
+		mkdir(path.abspath(path.join(ROOT_DIR, "./ocrfiles")));
 	except FileExistsError:
 		pass;
 
@@ -101,8 +107,8 @@ async def ocr_upload():
 		ret = buildRes(msg="No image uploaded");
 		return ret;
 
-	filename: str = f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png";
-	with open(path.abspath(filename), "wb") as fh:
+	filename: str = path.abspath(path.join(ROOT_DIR, f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png"));
+	with open(filename, "wb") as fh:
 		request.files["image"].save(fh);
 		print(f"File saved as {filename}.");
 
@@ -111,7 +117,7 @@ async def ocr_upload():
 	insert_document_result: dict = insertDocument(
 		user_id = user_data["user_id"],
 		document_type = "passport",
-		file_path = path.abspath(filename),
+		file_path = filename,
 	);
 	if (not insert_document_result["success"]):
 		return buildRes(msg="Could not add document to DB.", details={
@@ -133,7 +139,6 @@ async def ocr_upload():
 #		model_result_dict: dict = model_result.to_dict();
 
 	result = await external_ocr(filename);
-	print(result);
 
 	# Inserting screening in DB
 	# --------------------------------------------------
@@ -141,9 +146,7 @@ async def ocr_upload():
 	# Returning final result
 	# --------------------------------------------------
 
-#	ret = buildRes(True, "Model run.", {**model_result_dict["tamper_detection"]});
-#	return buildRes(True, "Model run.", {**model_result_dict});
-	return buildRes(True, "Model run.", result["prediction"]["tamper_detection"]);
+	return buildRes(True, "Model run.", result["tamper_detection"]);
 
 @app.route("/login", methods=["POST"])
 def login():

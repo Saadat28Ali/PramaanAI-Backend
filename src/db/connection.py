@@ -14,6 +14,11 @@ def testEnvVars():
 
 # testEnvVars(); # COMMENT THIS IN PROD
 
+# GLOBALS
+# -----------------------------------------------
+
+ROOT_DIR: str = os.path.abspath(os.getcwd());
+
 # -----------------------------------------------
 
 try:
@@ -25,7 +30,8 @@ try:
         user=os.getenv("DB_USER", "root"),
         password=os.getenv("DB_PASSWORD", ""),
         database=os.getenv("DB_NAME", "pramaanai_db"),
-        port=int(os.getenv("DB_PORT", 3306))
+        port=int(os.getenv("DB_PORT", 3306)),
+        ssl_ca=os.path.abspath(os.path.join(ROOT_DIR, "./secrets/isrgrootx1.pem"))
     )
     print("[DB] Connection pool established successfully.")
 except Error as e:
