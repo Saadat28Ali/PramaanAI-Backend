@@ -3,7 +3,7 @@
 from flask import Flask, request;
 from flask_cors import CORS;
 
-from os import path, mkdir, scandir, remove;
+from os import path, mkdir, scandir, remove, getcwd;
 from time import strftime;
 from copy import deepcopy;
 from .hash.hashf import hashIt;
@@ -11,8 +11,14 @@ from .hash.hashf import hashIt;
 # from .ai.__init__ import *
 from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser;
 from .jwt.token import createToken;
-from .util import getTokenData;
+from .util import getTokenData, checkDictShape;
 from .external_ai.main import external_ocr;
+
+
+# GLOBALS
+# ------------------------------------------------
+
+ROOT_DIR: str = path.abspath(getcwd());
 
 # ------------------------------------------------
 
@@ -20,7 +26,7 @@ app = Flask(__name__);
 CORS(app);
 
 try:
-	mkdir(path.abspath("./ocrfiles"));
+	mkdir(path.abspath(path.join(ROOT_DIR,"./ocrfiles")));
 except FileExistsError:
 	pass;
 
@@ -90,7 +96,7 @@ async def ocr_upload():
 	# if it already exists, this part is skipped
 
 	try:
-		mkdir(path.abspath("./ocrfiles"));
+		mkdir(path.abspath(path.join(ROOT_DIR, "./ocrfiles")));
 	except FileExistsError:
 		pass;
 
@@ -101,8 +107,8 @@ async def ocr_upload():
 		ret = buildRes(msg="No image uploaded");
 		return ret;
 
-	filename: str = f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png";
-	with open(path.abspath(filename), "wb") as fh:
+	filename: str = path.abspath(path.join(ROOT_DIR, f"./ocrfiles/{strftime('%H-%M-%S %d-%m-%Y')}.png"));
+	with open(filename, "wb") as fh:
 		request.files["image"].save(fh);
 		print(f"File saved as {filename}.");
 
@@ -111,7 +117,7 @@ async def ocr_upload():
 	insert_document_result: dict = insertDocument(
 		user_id = user_data["user_id"],
 		document_type = "passport",
-		file_path = path.abspath(filename),
+		file_path = filename,
 	);
 	if (not insert_document_result["success"]):
 		return buildRes(msg="Could not add document to DB.", details={
@@ -133,7 +139,6 @@ async def ocr_upload():
 #		model_result_dict: dict = model_result.to_dict();
 
 	result = await external_ocr(filename);
-	print(result);
 
 	# Inserting screening in DB
 	# --------------------------------------------------
@@ -141,16 +146,14 @@ async def ocr_upload():
 	# Returning final result
 	# --------------------------------------------------
 
-#	ret = buildRes(True, "Model run.", {**model_result_dict["tamper_detection"]});
-#	return buildRes(True, "Model run.", {**model_result_dict});
-	return buildRes(True, "Model run.", result["prediction"]["tamper_detection"]);
+	return buildRes(True, "Model run.", result["tamper_detection"]);
 
 @app.route("/login", methods=["POST"])
 def login():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
-	if not ("email" in data and "password" in data and "role" in data):
+	if not checkDictShape(data, {"email", "password", "role"}):
 		return buildRes(msg="Request JSON body must have keys email, password and role.");
 
 	# Getting user data
@@ -201,8 +204,8 @@ def register():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
-	if not ("name" in data and "email" in data and "password" in data and "role" in data):
-		return buildRes(msg="Request JSON data must have keys email, password and role.");
+	if not checkDictShape(data, {"name", "email", "password", "organization", "phone"}):
+		return buildRes(msg="Request JSON data must have keys name, email, password, organization and phone.");
 
 	# Getting user data
 	# --------------------------------------------------
@@ -215,34 +218,40 @@ def register():
 
 	if user_data is not None:
 		return buildRes(msg="User already exists.", details={
-			"email": data["email"],
-			"name": data["name"],
-			"password": data["password"],
-			"role": data["role"]
+			**data
+#			"email": data["email"],
+#			"name": data["name"],
+#			"password": data["password"],
+#			"organization": data["organization"],
+#			"phone": data["phone"]
 		});
 
 	# Creating new user in DB
 	# --------------------------------------------------
-	if (data["role"] not in {"officer", "admin"}):
-		data["role"] = "officer";
+#	if (data["role"] not in {"officer", "admin"}):
+#		data["role"] = "officer";
 
-	create_user_result: dict = createUser(data["name"], data["email"], data["password"], data["role"]);
+	create_user_result: dict = createUser(data["name"], data["email"], data["password"], "admin");
 	if not create_user_result["success"]:
 		return buildRes(False, "User could not be created. DB Error.", {
-			"name": data["name"],
-			"email": data["email"],
-			"password": data["password"],
-			"role": data["role"],
+			**data,
+#			"name": data["name"],
+#			"email": data["email"],
+#			"password": data["password"],
+#			"organization": data["organization"],
+#			"phone": data["phone"],
 			"dberror": create_user_result["message"]
 		});
 
 	# Returning final result
 	# --------------------------------------------------
 	return buildRes(True, "User has been created.", {
-		"name": data["name"],
-		"email": data["email"],
-		"password": data["password"],
-		"role": data["role"]
+		**data
+#		"name": data["name"],
+#		"email": data["email"],
+#		"password": data["password"],
+#		"organization": data["organization"],
+#		"phone": data["phone"]
 	});
 
 @app.route("/verifyToken", methods=["POST"])
