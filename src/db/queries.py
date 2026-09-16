@@ -543,47 +543,102 @@ def insert_audit_log(user_id: int, document_id: int = None, action: str = None, 
 			cursor.close()
 			conn.close()
 
-def createUser(name: str, email: str, raw_password: str, role: str = "officer") -> dict:
-	"""
-	Registers a new user in the users table.
-	Returns a dict with success status and user_id/message.
-  	Returns:
-  		{
-			"success": bool,
-			"message": str,
-			***
-  		}
-	"""
-	cleaned_email = email.strip().lower()
+def addUserToOrganisation(organization_id: int, organization_user: str, user_id: int) -> dict:
+    """
+    Inserts a newly created user into the organisation table.
+    """
+    query = """
+        INSERT INTO organisation (organization_id, organization_user, user_id)
+        VALUES (%s, %s, %s)
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, (organization_id, organization_user, user_id))
+        conn.commit()
+        return {"success": True, "message": "User linked to organization successfully"}
+    except Error as e:
+        print(f"[DB ERROR] addUserToOrganisation: {e}")
+        if conn:
+            conn.rollback()
+        return {"success": False, "message": f"Database error: {str(e)}"}
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
-	# 1. Check if email already exists
-#	if searchUser(cleaned_email):
-#		return {"success": False, "message": "Email already registered"}
 
-#	# 2. Hash the plain password
-#	salt = bcrypt.gensalt()
-#	hashed_password = bcrypt.hashpw(raw_password.encode('utf-8'), salt).decode('utf-8')
+def createUser(
+    admin_user_id: int, 
+    name: str, 
+    email: str, 
+    raw_password: str, 
+    organization_id: int,
+    organization_user: str,
+    role: str = "officer"
+) -> dict:
+    """
+    Registers a new user only if requested by an authenticated admin,
+    and automatically associates the user with an organization.
+    """
+    cleaned_email = email.strip().lower()
 
-	# 3. Insert new user record
-	query = """
-		INSERT INTO users (name, email, password_hash, role)
-		VALUES (%s, %s, %s, %s)
-	"""
-	conn = None
-	try:
-		conn = get_db_connection()
-		cursor = conn.cursor()
-#		cursor.execute(query, (name.strip(), cleaned_email, hashed_password, role))
-		cursor.execute(query, (name.strip(), cleaned_email, raw_password, role));
-		conn.commit()
-#		user_id = cursor.lastrowid
-		return {"success": True, "message": "User registered successfully"}
-	except Error as e:
-		print(f"[DB ERROR] register_user: {e}")
-		if conn:
-			conn.rollback()
-		return {"success": False, "message": f"Database error: {str(e)}"}
-	finally:
-		if conn and conn.is_connected():
-			cursor.close()
-			conn.close()
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # 1. Authorization check: Ensure requester exists and is an admin
+        admin_check_query = "SELECT role FROM users WHERE user_id = %s"
+        cursor.execute(admin_check_query, (admin_user_id,))
+        admin_record = cursor.fetchone()
+
+        if not admin_record or admin_record.get("role") != "admin":
+            return {
+                "success": False, 
+                "message": "Unauthorized: Only registered admins can create users."
+            }
+
+        # 2. Check if email already exists
+        cursor.execute("SELECT user_id FROM users WHERE email = %s", (cleaned_email,))
+        if cursor.fetchone():
+            return {"success": False, "message": "Email already registered."}
+
+        # 3. Hash password
+        salt = bcrypt.gensalt()
+        hashed_password = bcrypt.hashpw(raw_password.encode('utf-8'), salt).decode('utf-8')
+
+        # 4. Insert into users table
+        insert_user_query = """
+            INSERT INTO users (name, email, password_hash, role)
+            VALUES (%s, %s, %s, %s)
+        """
+        cursor.execute(insert_user_query, (name.strip(), cleaned_email, hashed_password, role))
+        new_user_id = cursor.lastrowid
+
+        # 5. Insert directly into organisation table in the same transaction
+        insert_org_query = """
+            INSERT INTO organisation (organization_id, organization_user, user_id)
+            VALUES (%s, %s, %s)
+        """
+        cursor.execute(insert_org_query, (organization_id, organization_user, new_user_id))
+
+        # Commit both operations together
+        conn.commit()
+
+        return {
+            "success": True, 
+            "message": "User registered and linked to organization successfully",
+            "user_id": new_user_id
+        }
+
+    except Error as e:
+        print(f"[DB ERROR] createUser: {e}")
+        if conn:
+            conn.rollback()
+        return {"success": False, "message": f"Database error: {str(e)}"}
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
