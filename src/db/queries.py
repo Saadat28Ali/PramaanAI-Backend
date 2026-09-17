@@ -611,7 +611,10 @@ def createUser(
 		if (admin_registration):
 
 			# Creating a new admin user (from /register endpoint)
+			# --------------------------------------------------
 
+			# Checking if all fields are present in newUserData
+			# --------------------------------------------------
 			if (not checkDictShape(newUserData, {"email", "password", "name", "organization", "phone"})):
 				return {
 					"success": False,
@@ -622,6 +625,8 @@ def createUser(
 				};
 			newUserData["email"] = newUserData["email"].strip().lower();
 
+			# Checking if user already exists with same email and password
+			# --------------------------------------------------
 			row: dict = cursor.execute("select * from users where user_id = %s and password_hash = %s", (newUserData["email"], newUserData["password"]));
 
 			if (row):
@@ -635,13 +640,18 @@ def createUser(
 					}
 				};
 
-			cursor.execute("describe users");
-			for row in cursor.fetchall():
-				print(row);
+#			cursor.execute("describe users");
+#			for row in cursor.fetchall():
+#				print(row);
 
+
+			# Creating new organization before creating a new admin user
+			# --------------------------------------------------
 			cursor.execute("insert into organization (organization_name) values (%s)", (newUserData["organization"], ));
 			organization_id: str = cursor.lastrowid;
 
+			# Creating new user
+			# --------------------------------------------------
 			cursor.execute("insert into users (email, name, password_hash, phone, organization_id, role) values (%s, %s, %s, %s, %s, %s)", (
 				newUserData["email"],
 				newUserData["name"],
@@ -652,6 +662,9 @@ def createUser(
 			));
 			user_id: str = cursor.lastrowid;
 			conn.commit();
+
+			# Returning final output
+			# --------------------------------------------------
 			return {
 				"success": True,
 				"message": "Created user and organization",
@@ -663,7 +676,10 @@ def createUser(
 		else:
 
 			# Creating a new officer
+			# --------------------------------------------------
 
+			# Checking the shape of newUserData
+			# --------------------------------------------------
 			if (not checkDictShape(newUserData, {"email", "password", "name", "phone"})):
 				return {
 					"success": False,
@@ -674,6 +690,8 @@ def createUser(
 				};
 			newUserData["email"] = newUserData["email"].strip().lower();
 
+			# Checking the shape of oldUserData
+			# --------------------------------------------------
 			if (not checkDictShape(oldUserData, {"email", "password"})):
 				return {
 					"success": False,
@@ -683,6 +701,8 @@ def createUser(
 					}
 				};
 
+			# Checking if admin user exists or not
+			# --------------------------------------------------
 			cursor.execute("select organization_id from users where email = %s and password_hash = %s limit 1", (oldUserData["email"], oldUserData["password"]));
 			row: dict = cursor.fetchone();
 			if (not row):
@@ -695,6 +715,8 @@ def createUser(
 				}
 			organization_id: str = row["organization_id"];
 
+			# Creating user
+			# --------------------------------------------------
 			result: dict = cursor.execute("insert into users (name, email, phone, password_hash, organization_id, role) values (%s, %s, %s, %s, %s, %s)", (
 				newUserData["name"],
 				newUserData["email"],
@@ -706,6 +728,9 @@ def createUser(
 			user_id: str = cursor.lastrowid;
 
 			conn.commit();
+
+			# Returning final result
+			# --------------------------------------------------
 			return {
 				"success": True,
 				"message": "User and organization created",
