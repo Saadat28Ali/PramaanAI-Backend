@@ -153,8 +153,8 @@ def login():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
-	if not checkDictShape(data, {"email", "password", "role"}):
-		return buildRes(msg="Request JSON body must have keys email, password and role.");
+	if not checkDictShape(data, {"email", "password"}):
+		return buildRes(msg="Request JSON body must have keys email and password");
 
 	# Getting user data
 	# --------------------------------------------------
@@ -163,7 +163,6 @@ def login():
 		return buildRes(msg="User could not be found due to DB Error.", details={
 			"email": data["email"],
 			"password": data["password"],
-			"role": data["role"],
 			"dberror": search_result["error"]
 		});
 
@@ -172,7 +171,6 @@ def login():
 		return buildRes(msg="User not found.", details={
 			"email": data["email"],
 			"password": data["password"],
-			"role": data["role"],
 		});
 
 	# Matching password and returning final result
@@ -182,11 +180,9 @@ def login():
 		ret = buildRes(success=True, msg="Password verified.", details={
 			"email": data["email"],
 			"password": data["password"],
-			"role": data["role"],
 			"token": createToken({
 				"email": data["email"],
 				"password": data["password"],
-				"role": data["role"]
 			})
 		});
 	else:
@@ -194,7 +190,6 @@ def login():
 		ret = buildRes(msg="Password incorrect.", details={
 			"email": data["email"],
 			"password": data["password"],
-			"role": data["role"]
 		});
 	return ret;
 
@@ -204,55 +199,17 @@ def register():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
-	if not checkDictShape(data, {"name", "email", "password", "organization", "phone"}):
-		return buildRes(msg="Request JSON data must have keys name, email, password, organization and phone.");
+	if not checkDictShape(data, {"oldUserData", "newUserData", "adminRegistration"}):
+		return buildRes(
+			msg="Request JSON data must have keys oldUserData, newUserData, adminRegistration"
+		);
 
-	# Getting user data
-	# --------------------------------------------------
-	search_result: dict = searchUser(data["email"]);
-	if not search_result["success"]:
-		return buildRes(msg="User could not be found due to DB error.", details={
-			"dberror": search_result["error"]
-		});
-	user_data: dict | None = search_result["row"];
-
-	if user_data is not None:
-		return buildRes(msg="User already exists.", details={
-			**data
-#			"email": data["email"],
-#			"name": data["name"],
-#			"password": data["password"],
-#			"organization": data["organization"],
-#			"phone": data["phone"]
-		});
-
-	# Creating new user in DB
-	# --------------------------------------------------
-#	if (data["role"] not in {"officer", "admin"}):
-#		data["role"] = "officer";
-
-	create_user_result: dict = createUser(data["name"], data["email"], data["password"], "admin");
-	if not create_user_result["success"]:
-		return buildRes(False, "User could not be created. DB Error.", {
-			**data,
-#			"name": data["name"],
-#			"email": data["email"],
-#			"password": data["password"],
-#			"organization": data["organization"],
-#			"phone": data["phone"],
-			"dberror": create_user_result["message"]
-		});
-
-	# Returning final result
-	# --------------------------------------------------
-	return buildRes(True, "User has been created.", {
-		**data
-#		"name": data["name"],
-#		"email": data["email"],
-#		"password": data["password"],
-#		"organization": data["organization"],
-#		"phone": data["phone"]
-	});
+	create_user_result: dict = createUser(
+		oldUserData=data["oldUserData"],
+		newUserData=data["newUserData"],
+		admin_registration=data["adminRegistration"]
+	);
+	return create_user_result;
 
 @app.route("/verifyToken", methods=["POST"])
 def verifyJWTToken():

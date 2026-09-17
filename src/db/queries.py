@@ -1,5 +1,6 @@
 from mysql.connector import Error
 from .connection import get_db_connection
+from ..util import checkDictShape
 
 def testQuery():
 	query: str = "SELECT * FROM documents";
@@ -544,101 +545,187 @@ def insert_audit_log(user_id: int, document_id: int = None, action: str = None, 
 			conn.close()
 
 def addUserToOrganisation(organization_id: int, organization_user: str, user_id: int) -> dict:
-    """
-    Inserts a newly created user into the organisation table.
-    """
-    query = """
-        INSERT INTO organisation (organization_id, organization_user, user_id)
-        VALUES (%s, %s, %s)
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(query, (organization_id, organization_user, user_id))
-        conn.commit()
-        return {"success": True, "message": "User linked to organization successfully"}
-    except Error as e:
-        print(f"[DB ERROR] addUserToOrganisation: {e}")
-        if conn:
-            conn.rollback()
-        return {"success": False, "message": f"Database error: {str(e)}"}
-    finally:
-        if conn and conn.is_connected():
-            cursor.close()
-            conn.close()
+	"""
+	Inserts a newly created user into the organisation table.
+	"""
+	query = """
+		INSERT INTO organisation (organization_id, organization_user, user_id)
+		VALUES (%s, %s, %s)
+	"""
+	conn = None
+	try:
+		conn = get_db_connection()
+		cursor = conn.cursor()
+		cursor.execute(query, (organization_id, organization_user, user_id))
+		conn.commit()
+		return {"success": True, "message": "User linked to organization successfully"}
+	except Error as e:
+		print(f"[DB ERROR] addUserToOrganisation: {e}")
+		if conn:
+			conn.rollback()
+		return {"success": False, "message": f"Database error: {str(e)}"}
+	finally:
+		if conn and conn.is_connected():
+			cursor.close()
+			conn.close()
 
+def createOrganization(
+	organization_name: str
+) -> dict:
+	conn = None;
+	try:
+		conn = get_db_connection();
+		cursor = conn.cursor(dictionary = True);
+
+		cursor.execute("insert into organization (organization_name) values (%s)", (organization_name));
+		if (cursor.fetchone()):
+			return {
+				"success": true,
+				"message": "Organization successfully created.",
+				"details": {
+					"organization_name": organization_name
+				}
+			};
+	except Error as e:
+		print(f"[DB ERROR] createOrganization: {e}")
+		if conn:
+			conn.rollback()
+		return {"success": False, "message": f"Database error: {str(e)}"}
+	finally:
+		if conn and conn.is_connected():
+			cursor.close()
+			conn.close()
 
 def createUser(
-    admin_user_id: int, 
-    name: str, 
-    email: str, 
-    raw_password: str, 
-    organization_id: int,
-    organization_user: str,
-    role: str = "officer"
+	oldUserData: dict,
+	newUserData: dict,
+	admin_registration: str
 ) -> dict:
-    """
-    Registers a new user only if requested by an authenticated admin,
-    and automatically associates the user with an organization.
-    """
-    cleaned_email = email.strip().lower()
 
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
+	conn = None;
+	cursor = None;
+	try:
+		conn = get_db_connection();
+		cursor = conn.cursor(dictionary=True, buffered=True);
 
-        # 1. Authorization check: Ensure requester exists and is an admin
-        admin_check_query = "SELECT role FROM users WHERE user_id = %s"
-        cursor.execute(admin_check_query, (admin_user_id,))
-        admin_record = cursor.fetchone()
+		if (admin_registration):
 
-        if not admin_record or admin_record.get("role") != "admin":
-            return {
-                "success": False, 
-                "message": "Unauthorized: Only registered admins can create users."
-            }
+			# Creating a new admin user (from /register endpoint)
 
-        # 2. Check if email already exists
-        cursor.execute("SELECT user_id FROM users WHERE email = %s", (cleaned_email,))
-        if cursor.fetchone():
-            return {"success": False, "message": "Email already registered."}
+			if (not checkDictShape(newUserData, {"email", "password", "name", "organization", "phone"})):
+				return {
+					"success": False,
+					"message": "Could not create user due to missing fields.",
+					"details": {
+						"newUserData": newUserData
+					}
+				};
+			newUserData["email"] = newUserData["email"].strip().lower();
 
-        # 3. Hash password
-        salt = bcrypt.gensalt()
-        hashed_password = bcrypt.hashpw(raw_password.encode('utf-8'), salt).decode('utf-8')
+			row: dict = cursor.execute("select * from users where user_id = %s and password_hash = %s", (newUserData["email"], newUserData["password"]));
 
-        # 4. Insert into users table
-        insert_user_query = """
-            INSERT INTO users (name, email, password_hash, role)
-            VALUES (%s, %s, %s, %s)
-        """
-        cursor.execute(insert_user_query, (name.strip(), cleaned_email, hashed_password, role))
-        new_user_id = cursor.lastrowid
+			if (row):
+				return {
+					"success": False,
+					"message": "Could not create user, the user with given email already exists",
+					"details": {
+						"oldUserData": oldUserData,
+						"newUserData": newUserData,
+						"admin_registration": admin_registration
+					}
+				};
 
-        # 5. Insert directly into organisation table in the same transaction
-        insert_org_query = """
-            INSERT INTO organisation (organization_id, organization_user, user_id)
-            VALUES (%s, %s, %s)
-        """
-        cursor.execute(insert_org_query, (organization_id, organization_user, new_user_id))
+			cursor.execute("describe users");
+			for row in cursor.fetchall():
+				print(row);
 
-        # Commit both operations together
-        conn.commit()
+			cursor.execute("insert into organization (organization_name) values (%s)", (newUserData["organization"], ));
+			organization_id: str = cursor.lastrowid;
 
-        return {
-            "success": True, 
-            "message": "User registered and linked to organization successfully",
-            "user_id": new_user_id
-        }
+			cursor.execute("insert into users (email, name, password_hash, phone, organization_id, role) values (%s, %s, %s, %s, %s, %s)", (
+				newUserData["email"],
+				newUserData["name"],
+				newUserData["password"],
+				newUserData["phone"],
+				organization_id,
+				"admin"
+			));
+			user_id: str = cursor.lastrowid;
+			conn.commit();
+			return {
+				"success": True,
+				"message": "Created user and organization",
+				"details": {
+					"user_id": user_id,
+					"organization_id": organization_id
+				}
+			};
+		else:
 
-    except Error as e:
-        print(f"[DB ERROR] createUser: {e}")
-        if conn:
-            conn.rollback()
-        return {"success": False, "message": f"Database error: {str(e)}"}
-    finally:
-        if conn and conn.is_connected():
-            cursor.close()
-            conn.close()
+			# Creating a new officer
+
+			if (not checkDictShape(newUserData, {"email", "password", "name", "phone"})):
+				return {
+					"success": False,
+					"message": "Could not create user due to missing fields.",
+					"details": {
+						"newUserData": newUserData
+					}
+				};
+			newUserData["email"] = newUserData["email"].strip().lower();
+
+			if (not checkDictShape(oldUserData, {"email", "password"})):
+				return {
+					"success": False,
+					"message": "Could not create officer, due to invalid authorization of admin user.",
+					"details": {
+						"oldUserData": oldUserData
+					}
+				};
+
+			cursor.execute("select organization_id from users where email = %s and password_hash = %s limit 1", (oldUserData["email"], oldUserData["password"]));
+			row: dict = cursor.fetchone();
+			if (not row):
+				return {
+					"success": False,
+					"message": "Could not create officer, admin user does not exist.",
+					"details": {
+						"oldUserData": oldUserData
+					}
+				}
+			organization_id: str = row["organization_id"];
+
+			result: dict = cursor.execute("insert into users (name, email, phone, password_hash, organization_id, role) values (%s, %s, %s, %s, %s, %s)", (
+				newUserData["name"],
+				newUserData["email"],
+				newUserData["phone"],
+				newUserData["password"],
+				organization_id,
+				"officer"
+			));
+			user_id: str = cursor.lastrowid;
+
+			conn.commit();
+			return {
+				"success": True,
+				"message": "User and organization created",
+				"details": {
+					"user_id": user_id,
+					"organization_id": organization_id
+				}
+			};
+
+	except Error as e:
+		print(f"[DB ERROR] createUser: {e}")
+		if conn:
+			conn.rollback();
+		return {"success": False, "message": "Could not create user or organization.", "details": {
+			"oldUserData": oldUserData,
+			"newUserData": newUserData,
+			"admin_registration": admin_registration
+		}}
+	finally:
+		if conn and conn.is_connected():
+			conn.close();
+		if cursor:
+			cursor.close();
