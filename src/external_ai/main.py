@@ -1,5 +1,9 @@
-from os import path, getcwd;
+from os import path, getcwd, getenv;
+
+from dotenv import load_dotenv
 import httpx;
+
+load_dotenv();
 
 # GLOBALS
 # --------------------------------------------------
@@ -14,7 +18,8 @@ async def external_ocr(filename: str):
 #			files = {"image": (path.abspath(path.join(ROOT_DIR, filename)), f, "application/octet-stream")};
 			response = await client.post(
 #				"https://8000-01m1c4fxrw0vbrba3x0mf49meg.cloudspaces.litng.ai/predict",
-				"https://pramaanai-model2.onrender.com/api/v1/ela-only",
+#				"https://pramaanai-model2.onrender.com/api/v1/ela-only",
+				getenv("AI_HOST"),
 				files = {
 					"file": f
 				}
