@@ -185,7 +185,8 @@ def login():
 				"password": data["password"],
 			}),
 			"role": user_data["role"],
-			"phone": user_data["Phone"]
+			"phone": user_data["Phone"],
+			"name": user_data["name"]
 		});
 	else:
 		# password incorrect
