@@ -485,16 +485,13 @@ def getAuditLogsByUser(user_id: int, limit: int = 20, offset: int = 0) -> list[d
 		offset = 0;
 
 	query = """
-		SELECT 
-			d.document_id as doc_id,
-			d.document_type as doc_type,
-			u.name as user_name,
-			al.timestamp as timestamp,
-			al.decision as decision
-		FROM audit_logs al
-		LEFT JOIN users u ON al.user_id = u.user_id
-		LEFT JOIN documents d ON al.document_id = d.document_id
-		WHERE user_id = %s
+		SELECT
+			users.name as user_name,
+			audit_logs.timestamp as timestamp,
+			audit_logs.decision as decision
+		FROM audit_logs
+		JOIN users ON audit_logs.user_id = users.user_id
+		WHERE audit_logs.user_id = %s
 		ORDER BY timestamp DESC
 		LIMIT %s OFFSET %s;
 	"""
@@ -519,26 +516,39 @@ def getAuditLogsByUser(user_id: int, limit: int = 20, offset: int = 0) -> list[d
 			conn.close()
 
 
-def insert_audit_log(user_id: int, document_id: int = None, action: str = None, decision: str = None) -> int | None:
+def insertAuditLog(user_id: int, document_id: int = None, decision: str = None) -> int | None:
 	"""
 	Inserts a new event into the audit_logs table.
 	"""
 	query = """
-		INSERT INTO audit_logs (user_id, document_id, action, decision)
-		VALUES (%s, %s, %s, %s)
+		INSERT INTO audit_logs (user_id, document_id, decision)
+		VALUES (%s, %s, %s)
 	"""
 	conn = None
 	try:
-		conn = get_db_connection()
-		cursor = conn.cursor()
-		cursor.execute(query, (user_id, document_id, action, decision))
-		conn.commit()
-		return cursor.lastrowid
+		conn = get_db_connection();
+		cursor = conn.cursor();
+		cursor.execute(query, (user_id, document_id, decision));
+		log_id: str = cursor.lastrowid;
+		conn.commit();
+#		return cursor.lastrowid
+		return {
+			"success": True,
+			"log_id": log_id
+		};
 	except Error as e:
 		print(f"[DB ERROR] insert_audit_log: {e}")
 		if conn:
 			conn.rollback()
-		return None
+		return {
+			"success": False,
+			"details": {
+				"user_id": user_id,
+				"document_id": document_id,
+				"decision": decision
+			},
+			"error": e
+		};
 	finally:
 		if conn and conn.is_connected():
 			cursor.close()

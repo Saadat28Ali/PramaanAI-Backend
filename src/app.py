@@ -9,7 +9,7 @@ from copy import deepcopy;
 from .hash.hashf import hashIt;
 
 # from .ai.__init__ import *
-from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser;
+from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser, insertAuditLog;
 from .jwt.token import createToken;
 from .util import getTokenData, checkDictShape;
 from .external_ai.main import external_ocr;
@@ -126,22 +126,19 @@ async def ocr_upload():
 
 	# Passing image data into model
 	# --------------------------------------------------
-#	pipeline = DocuNetPipeline();
-#	img = imread(filename, IMREAD_COLOR);
-#
-#	if img is None:
-#		ret = buildRes(msg = "Invalid image.");
-#		return ret;
-#
-#	model_result_dict: dict = {};
-#	with open(path.abspath(filename), "rb") as fh:
-#		model_result = pipeline.process(img);
-#		model_result_dict: dict = model_result.to_dict();
 
 	result = await external_ocr(filename);
 
-	# Inserting screening in DB
+#	for key in result["tamper_detection"]:
+#		print(key);
+
+	# Inserting audit log in DB
 	# --------------------------------------------------
+	insertAuditLog(
+		user_data["user_id"],
+		insert_document_result["document_id"],
+		"Tampered" if result["tamper_detection"]["is_tampered"] else "Verified"
+	);
 
 	# Returning final result
 	# --------------------------------------------------
@@ -233,6 +230,12 @@ def getAuditHistory():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
+	if not checkDictShape(data, {"limit", "offset"}):
+		return {
+			"success": False,
+			"error": "JSON data requeires keys limit and offset."
+		};
+
 	# Getting token data
 	# --------------------------------------------------
 	token_data_result: dict = getTokenData(request);
@@ -263,6 +266,8 @@ def getAuditHistory():
 		return buildRes(msg="Could not fetch audit logs due to DB error.", details={
 			"dberror": audit_logs_fetch_result["error"]
 		});
+
+	print(audit_logs_fetch_result);
 
 	# Returning final result
 	# --------------------------------------------------

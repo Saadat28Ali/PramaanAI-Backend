@@ -13,7 +13,7 @@ ROOT_DIR: str = path.abspath(getcwd());
 # --------------------------------------------------
 
 async def external_ocr(filename: str):
-	async with httpx.AsyncClient(timeout = 20.0) as client:
+	async with httpx.AsyncClient(timeout = 60.0) as client:
 		with open(path.abspath(path.join(ROOT_DIR, filename)), "rb") as f:
 #			files = {"image": (path.abspath(path.join(ROOT_DIR, filename)), f, "application/octet-stream")};
 			response = await client.post(
