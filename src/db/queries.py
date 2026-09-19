@@ -23,7 +23,7 @@ def searchUser(email: str) -> dict:
 	"""
 	Fetches full user record as a dictionary. Returns None if not found.
 	"""
-	query = "SELECT user_id, name, email, password_hash, role FROM users WHERE email = %s LIMIT 1"
+	query = "SELECT * FROM users WHERE email = %s LIMIT 1"
 	conn = None
 	try:
 		conn = get_db_connection()

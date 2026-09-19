@@ -183,7 +183,9 @@ def login():
 			"token": createToken({
 				"email": data["email"],
 				"password": data["password"],
-			})
+			}),
+			"role": user_data["role"],
+			"phone": user_data["Phone"]
 		});
 	else:
 		# password incorrect
