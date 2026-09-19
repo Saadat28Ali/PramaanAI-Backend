@@ -516,7 +516,7 @@ def getAuditLogsByUser(user_id: int, limit: int = 20, offset: int = 0) -> list[d
 			conn.close()
 
 
-def insertAuditLog(user_id: int, document_id: int = None, decision: str = None) -> int | None:
+def insertAuditLog(user_id: int, document_id: int = None, decision: str = None) -> dict:
 	"""
 	Inserts a new event into the audit_logs table.
 	"""
@@ -757,7 +757,8 @@ def createUser(
 		return {"success": False, "message": "Could not create user or organization.", "details": {
 			"oldUserData": oldUserData,
 			"newUserData": newUserData,
-			"admin_registration": admin_registration
+			"admin_registration": admin_registration,
+			"error": e
 		}}
 	finally:
 		if conn and conn.is_connected():
