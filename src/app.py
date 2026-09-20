@@ -199,13 +199,45 @@ def register():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
 
-	if not checkDictShape(data, {"oldUserData", "newUserData", "adminRegistration"}):
+	if not checkDictShape(data, {"newUserData", "adminRegistration"}):
 		return buildRes(
-			msg="Request JSON data must have keys oldUserData, newUserData, adminRegistration"
+			msg="Request JSON data must have keys newUserData, adminRegistration"
 		);
 
+	oldUserData = {};
+
+	if (data["adminRegistration"]):
+		# Creating admin user from register page
+		pass;
+
+	else:
+		# Creating officer from dashboard
+
+		print(1);
+
+		# Getting token data
+		# --------------------------------------------------
+		token_data_result: dict = getTokenData(request);
+		if not token_data_result["success"]:
+			return buildRes(msg="Could not get token data.", details={
+				"error": token_data_result["error"],
+				**data
+			});
+
+		print(2);
+
+#		token_data: dict = token_data_result["token_data"];
+#		oldUserData = token_data_result["token_data"];
+		oldUserData = {
+			email: token_data_result["token_data"]["email"],
+			password: token_data_result["token_data"]["password"],
+		};
+
+	# Creating user
+	# --------------------------------------------------
+
 	create_user_result: dict = createUser(
-		oldUserData=data["oldUserData"],
+		oldUserData=oldUserData,
 		newUserData=data["newUserData"],
 		admin_registration=data["adminRegistration"]
 	);

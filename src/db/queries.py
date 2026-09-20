@@ -650,11 +650,6 @@ def createUser(
 					}
 				};
 
-#			cursor.execute("describe users");
-#			for row in cursor.fetchall():
-#				print(row);
-
-
 			# Creating new organization before creating a new admin user
 			# --------------------------------------------------
 			cursor.execute("insert into organization (organization_name) values (%s)", (newUserData["organization"], ));
@@ -758,7 +753,7 @@ def createUser(
 			"oldUserData": oldUserData,
 			"newUserData": newUserData,
 			"admin_registration": admin_registration,
-			"error": e
+			"error": str(e)
 		}}
 	finally:
 		if conn and conn.is_connected():
