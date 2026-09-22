@@ -229,8 +229,8 @@ def register():
 #		token_data: dict = token_data_result["token_data"];
 #		oldUserData = token_data_result["token_data"];
 		oldUserData = {
-			email: token_data_result["token_data"]["email"],
-			password: token_data_result["token_data"]["password"],
+			"email": token_data_result["token_data"]["email"],
+			"password": token_data_result["token_data"]["password"],
 		};
 
 	# Creating user
