@@ -488,7 +488,9 @@ def getAuditLogsByUser(user_id: int, limit: int = 20, offset: int = 0) -> list[d
 		SELECT
 			users.name as user_name,
 			audit_logs.timestamp as timestamp,
-			audit_logs.decision as decision
+			audit_logs.decision as decision,
+			audit_logs.document_type AS document_type,
+            audit_logs.`risk score` AS risk_score
 		FROM audit_logs
 		JOIN users ON audit_logs.user_id = users.user_id
 		WHERE audit_logs.user_id = %s
@@ -516,19 +518,19 @@ def getAuditLogsByUser(user_id: int, limit: int = 20, offset: int = 0) -> list[d
 			conn.close()
 
 
-def insertAuditLog(user_id: int, document_id: int = None, decision: str = None) -> dict:
+def insertAuditLog(user_id: int, document_id: int = None, decision: str = None, risk_score: float = None, document_type: str = None) -> dict:
 	"""
 	Inserts a new event into the audit_logs table.
 	"""
 	query = """
-		INSERT INTO audit_logs (user_id, document_id, decision)
-		VALUES (%s, %s, %s)
+		INSERT INTO audit_logs (user_id, document_id, decision, `risk score`, document_type)
+        VALUES (%s, %s, %s, %s, %s)
 	"""
 	conn = None
 	try:
 		conn = get_db_connection();
 		cursor = conn.cursor();
-		cursor.execute(query, (user_id, document_id, decision));
+		cursor.execute(query, (user_id, document_id, decision,risk_score, document_type));
 		log_id: str = cursor.lastrowid;
 		conn.commit();
 #		return cursor.lastrowid
@@ -545,7 +547,9 @@ def insertAuditLog(user_id: int, document_id: int = None, decision: str = None) 
 			"details": {
 				"user_id": user_id,
 				"document_id": document_id,
-				"decision": decision
+				"decision": decision,
+				"risk_score": risk_score,
+				"document_type": document_type
 			},
 			"error": e
 		};
