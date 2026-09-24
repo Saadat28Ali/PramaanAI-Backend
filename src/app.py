@@ -257,7 +257,7 @@ def verifyJWTToken():
 
 	return buildRes(True, "Token is valid.", {});
 
-@app.route("/audit_log", methods=["POST"])
+@app.route("/audit_logs", methods=["POST"])
 def getAuditHistory():
 	ret: dict = deepcopy(RES_TEMPLATE);
 	data: dict = request.get_json();
