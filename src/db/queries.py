@@ -2,6 +2,8 @@ from mysql.connector import Error
 from .connection import get_db_connection
 from ..util import checkDictShape
 
+
+
 def testQuery():
 	query: str = "SELECT * FROM documents";
 	conn = None;
@@ -660,7 +662,7 @@ def getAuditLogsByUser(user_id: int, limit: int = 20, offset: int = 0) -> list[d
 			audit_logs.timestamp as timestamp,
 			audit_logs.decision as decision,
 			audit_logs.document_type AS document_type,
-            audit_logs.`risk score` AS risk_score
+            audit_logs.`risk_score` AS risk_score
 		FROM audit_logs
 		JOIN users ON audit_logs.user_id = users.user_id
 		WHERE audit_logs.user_id = %s
@@ -693,7 +695,7 @@ def insertAuditLog(user_id: int, document_id: int = None, decision: str = None, 
 	Inserts a new event into the audit_logs table.
 	"""
 	query = """
-		INSERT INTO audit_logs (user_id, document_id, decision, `risk score`, document_type)
+		INSERT INTO audit_logs (user_id, document_id, decision, `risk_score`, document_type)
         VALUES (%s, %s, %s, %s, %s)
 	"""
 	conn = None
@@ -934,3 +936,52 @@ def createUser(
 			conn.close();
 		if cursor:
 			cursor.close();
+
+
+
+
+					
+
+
+def getAuditLogsOfOrganization(
+    connection, user_id: int, limit: int = 50, offset: int = 0
+) -> dict:
+    """Gets audit logs from DB created by any user in the same organization as the given user_id.
+
+    Returns a dict with execution status and retrieved rows.
+    """
+    query = """
+        SELECT al.*
+        FROM audit_logs al
+        WHERE al.user_id IN (
+            SELECT u.user_id
+            FROM users u
+            WHERE u.organization_id = (
+                SELECT organization_id
+                FROM users
+                WHERE user_id = %s
+                LIMIT 1
+            )
+        )
+        ORDER BY al.created_at DESC
+        LIMIT %s OFFSET %s;
+    """
+
+    try:
+        # RealDictCursor returns rows as dictionaries instead of plain tuples
+        with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(query, (user_id, limit, offset))
+            rows = cursor.fetchall()
+
+        return {
+            "success": True,
+            "rows": rows,
+            "count": len(rows),
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "rows": [],
+            "error": str(error),
+        }
