@@ -205,136 +205,306 @@ def insert_verification_results(document_id, ocr_score, validation_score, tamper
 
 
 # 5. Log officer's screening decision
-def insert_screening_log(document_id, officer_id, action, decision):
+def insert_screening_log(document_id, officer_id, risk_score, decision) -> dict:
 	query = """
-		INSERT INTO screening_logs (document_id, officer_id, action, decision)
+		INSERT INTO screening_logs (document_id, officer_id, risk_score, decision)
 		VALUES (%s, %s, %s, %s)
 	"""
 	conn = None
 	try:
 		conn = get_db_connection()
 		cursor = conn.cursor()
-		cursor.execute(query, (document_id, officer_id, action, decision))
+		cursor.execute(query, (document_id, officer_id, risk_score, decision))
 		conn.commit()
-		return cursor.lastrowid
+		return {
+			"success": True,
+			"screening_id": cursor.lastrowid
+		};
 	except Error as e:
 		print(f"[DB ERROR] insert_screening_log: {e}")
 		if conn:
 			conn.rollback()
-		return None
+		return {
+			"success": False,
+			"error": str(e)
+		};
 	finally:
 		if conn and conn.is_connected():
 			cursor.close()
 			conn.close()
 
+def getDashboardMetrics(
+	user_id: int,
+	organization_id: int,
+	admin_flag: bool,
+	prev_day_count = 5
+) -> dict:
 
-def get_dashboard_metrics() -> dict:
-	"""
-	Fetches real-time summary statistics, risk distribution, daily screening volume,
-	and recent records directly from the `screenings` table.
-	"""
-	conn = None
-	dashboard_data = {
-		"summary": {
-			"total": 0,
-			"verified": 0,
-			"rejected": 0,
-			"suspicious": 0,
-			"verification_rate": 0.0,
-			"rejection_rate": 0.0,
-			"suspicious_rate": 0.0
-		},
-		"risk_distribution": {
-			"low_risk": 0,
-			"rejected": 0,
-			"medium_risk": 0
-		},
-		"screening_activity": [],
-		"recent_screenings": []
-	}
-	
+	# prev_day_count is the number of days that need
+	# to be considered for fetching audit_log count
+	# grouped by dates
+	# by default, the audit logs of the previous 5
+	# days will be considered
+
+	conn = None;
+	cursor = None;
+
+	queries: dict = {};
+	if admin_flag:
+		queries["screening_count_by_decision"] = """
+			select
+			ifnull(
+				sum(
+					case when temp.decision = "Verified"
+					then temp.count
+					else 0
+					end
+				), 0
+			) as Verified,
+			ifnull(
+				sum(
+					case when temp.decision = "Rejected"
+					then temp.count
+					else 0
+					end
+				), 0
+			) as "Rejected",
+			ifnull(
+				sum(
+					case when temp.decision = "Suspicious"
+					then temp.count
+					else 0
+					end
+				), 0
+			) as "Suspicious"
+
+			from
+			(
+				select decision, count(*) as count
+				from audit_logs
+				where user_id in (
+					select user_id
+					from users
+					where organization_id = %s
+				) and timestampdiff(day, timestamp, curdate()) < %s
+				group by decision
+			) temp
+		""";
+		queries["screening_count_by_date"] = """
+			select timestamp, count(*) as log_count
+			from audit_logs
+			where user_id in (
+				select user_id
+				from users
+				where organization_id = %s
+			) and
+			timestampdiff(day, timestamp, curdate()) < %s
+			group by timestamp
+			order by timestamp
+		""";
+	else:
+		queries["screening_count_by_decision"] = """
+			select
+			ifnull(
+				sum(
+					case when temp.decision = "Verified"
+					then temp.count
+					else 0
+					end
+				), 0
+			) as Verified,
+			ifnull(
+				sum(
+					case when temp.decision = "Rejected"
+					then temp.count
+					else 0
+					end
+				), 0
+			) as "Rejected",
+			ifnull(
+				sum(
+					case when temp.decision = "Suspicious"
+					then temp.count
+					else 0
+					end
+				), 0
+			) as "Suspicious"
+
+			from
+			(
+				select decision, count(*) as count
+				from audit_logs
+				where user_id = %s and
+				timestampdiff(day, timestamp, curdate()) < %s
+				group by decision
+			) temp
+		""";
+		queries["screening_count_by_date"] = """
+			select timestamp, count(*) as log_count
+			from audit_logs
+			where user_id = %s
+			timestampdiff(day, timestamp, curdate()) < %s
+			group by timestamp
+			order by timestamp
+		""";
+
 	try:
-		conn = get_db_connection()
-		cursor = conn.cursor(dictionary=True)
+		conn = get_db_connection();
+		cursor = conn.cursor(dictionary=True);
 
-		# 1. Summary Cards & Risk Breakdown
-		summary_query = """
-			SELECT 
-				COUNT(*) AS total,
-				COUNT(CASE WHEN LOWER(decision) = 'verified' THEN 1 END) AS verified,
-				COUNT(CASE WHEN LOWER(decision) = 'rejected' THEN 1 END) AS rejected,
-				COUNT(CASE WHEN LOWER(decision) IN ('suspicious', 'manual_review') THEN 1 END) AS suspicious
-			FROM screenings;
-		"""
-		cursor.execute(summary_query)
-		stats = cursor.fetchone()
-		
-		if stats:
-			total = stats.get("total") or 0
-			verified = stats.get("verified") or 0
-			rejected = stats.get("rejected") or 0
-			suspicious = stats.get("suspicious") or 0
+		cursor.execute(queries["screening_count_by_decision"], (organization_id if admin_flag else user_id, prev_day_count));
+		audit_logs_by_decision: dict = cursor.fetchone();
 
-			dashboard_data["summary"] = {
-				"total": total,
-				"verified": verified,
-				"rejected": rejected,
-				"suspicious": suspicious,
-				"verification_rate": round((verified / total * 100), 1) if total > 0 else 0.0,
-				"rejection_rate": round((rejected / total * 100), 1) if total > 0 else 0.0,
-				"suspicious_rate": round((suspicious / total * 100), 1) if total > 0 else 0.0
-			}
-			dashboard_data["risk_distribution"] = {
-				"low_risk": verified,
-				"rejected": rejected,
-				"medium_risk": suspicious
-			}
+		cursor.execute(queries["screening_count_by_date"], (organization_id if admin_flag else user_id, prev_day_count));
+		audit_logs_by_date: dict = cursor.fetchall();
 
-		# 2. Daily Screening Activity (Last 6-7 days trend for the line chart)
-		activity_query = """
-			SELECT 
-				DATE(screening_time) AS date,
-				DATE_FORMAT(screening_time, '%d %b') AS label,
-				COUNT(*) AS volume
-			FROM screenings
-			WHERE screening_time >= CURDATE() - INTERVAL 6 DAY
-			GROUP BY DATE(screening_time), DATE_FORMAT(screening_time, '%d %b')
-			ORDER BY DATE(screening_time) ASC;
-		"""
-		cursor.execute(activity_query)
-		dashboard_data["screening_activity"] = cursor.fetchall()
+#		if (not audit_logs_by_decision or not audit_logs_by_date):
+#			return {
+#				"success": False,
+#				"message": "DB did not return audit log data. Maybe there are no audit logs being generated?",
+#				"details": {
+#					"user_id": user_id,
+#					"organization_id": organization_id,
+#					"admin_flag": admin_flag,
+#					"prev_day_count": prev_day_count,
+#					"audit_logs_by_decision": audit_logs_by_decision,
+#					"audit_logs_by_date": audit_logs_by_date
+#				}
+#			};
 
-		# 3. Recent Screenings List (Top 10 latest records)
-		recent_query = """
-			SELECT 
-				s.screening_id,
-				s.person_id,
-				s.document_id,
-				s.officer_id,
-				s.risk_score,
-				s.decision,
-				s.screening_time,
-				d.document_type,
-				ed.name AS applicant_name,
-				ed.passport_number
-			FROM screenings s
-			LEFT JOIN documents d ON s.document_id = d.id
-			LEFT JOIN extracted_data ed ON s.document_id = ed.document_id
-			ORDER BY s.screening_time DESC
-			LIMIT 10;
-		"""
-		cursor.execute(recent_query)
-		dashboard_data["recent_screenings"] = cursor.fetchall()
-
-		return dashboard_data
+		return {
+			"success": True,
+			"user_id": user_id,
+			"organization_id": organization_id,
+			"admin_flag": admin_flag,
+			"prev_day_count": prev_day_count,
+			"audit_logs_by_decision": audit_logs_by_decision,
+			"audit_logs_by_date": audit_logs_by_date
+		};
 
 	except Error as e:
-		print(f"[DB ERROR] get_dashboard_metrics: {e}")
-		return dashboard_data
+		print(f"[DB Error]: {e}");
+		return {
+			"success": False,
+			"error": str(e),
+			"user_id": user_id,
+			"organization_id": organization_id,
+			"admin_flag": admin_flag,
+			"prev_day_count": prev_day_count,
+		};
 	finally:
-		if conn and conn.is_connected():
-			cursor.close()
-			conn.close()
+		if conn.is_connected():
+			cursor.close();
+			conn.close();
+
+#
+#def get_dashboard_metrics() -> dict:
+#	"""
+#	Fetches real-time summary statistics, risk distribution, daily screening volume,
+#	and recent records directly from the `screenings` table.
+#	"""
+#	conn = None
+#	dashboard_data = {
+#		"summary": {
+#			"total": 0,
+#			"verified": 0,
+#			"rejected": 0,
+#			"suspicious": 0,
+#			"verification_rate": 0.0,
+#			"rejection_rate": 0.0,
+#			"suspicious_rate": 0.0
+#		},
+#		"risk_distribution": {
+#			"low_risk": 0,
+#			"rejected": 0,
+#			"medium_risk": 0
+#		},
+#		"screening_activity": [],
+#		"recent_screenings": []
+#	}
+#	
+#	try:
+#		conn = get_db_connection()
+#		cursor = conn.cursor(dictionary=True)
+#
+#		# 1. Summary Cards & Risk Breakdown
+#		summary_query = """
+#			SELECT 
+#				COUNT(*) AS total,
+#				COUNT(CASE WHEN LOWER(decision) = 'verified' THEN 1 END) AS verified,
+#				COUNT(CASE WHEN LOWER(decision) = 'rejected' THEN 1 END) AS rejected,
+#				COUNT(CASE WHEN LOWER(decision) IN ('suspicious', 'manual_review') THEN 1 END) AS suspicious
+#			FROM screenings;
+#		"""
+#		cursor.execute(summary_query)
+#		stats = cursor.fetchone()
+#		
+#		if stats:
+#			total = stats.get("total") or 0
+#			verified = stats.get("verified") or 0
+#			rejected = stats.get("rejected") or 0
+#			suspicious = stats.get("suspicious") or 0
+#
+#			dashboard_data["summary"] = {
+#				"total": total,
+#				"verified": verified,
+#				"rejected": rejected,
+#				"suspicious": suspicious,
+#				"verification_rate": round((verified / total * 100), 1) if total > 0 else 0.0,
+#				"rejection_rate": round((rejected / total * 100), 1) if total > 0 else 0.0,
+#				"suspicious_rate": round((suspicious / total * 100), 1) if total > 0 else 0.0
+#			}
+#			dashboard_data["risk_distribution"] = {
+#				"low_risk": verified,
+#				"rejected": rejected,
+#				"medium_risk": suspicious
+#			}
+#
+#		# 2. Daily Screening Activity (Last 6-7 days trend for the line chart)
+#		activity_query = """
+#			SELECT 
+#				DATE(screening_time) AS date,
+#				DATE_FORMAT(screening_time, '%d %b') AS label,
+#				COUNT(*) AS volume
+#			FROM screenings
+#			WHERE screening_time >= CURDATE() - INTERVAL 6 DAY
+#			GROUP BY DATE(screening_time), DATE_FORMAT(screening_time, '%d %b')
+#			ORDER BY DATE(screening_time) ASC;
+#		"""
+#		cursor.execute(activity_query)
+#		dashboard_data["screening_activity"] = cursor.fetchall()
+#
+#		# 3. Recent Screenings List (Top 10 latest records)
+#		recent_query = """
+#			SELECT 
+#				s.screening_id,
+#				s.person_id,
+#				s.document_id,
+#				s.officer_id,
+#				s.risk_score,
+#				s.decision,
+#				s.screening_time,
+#				d.document_type,
+#				ed.name AS applicant_name,
+#				ed.passport_number
+#			FROM screenings s
+#			LEFT JOIN documents d ON s.document_id = d.id
+#			LEFT JOIN extracted_data ed ON s.document_id = ed.document_id
+#			ORDER BY s.screening_time DESC
+#			LIMIT 10;
+#		"""
+#		cursor.execute(recent_query)
+#		dashboard_data["recent_screenings"] = cursor.fetchall()
+#
+#		return dashboard_data
+#
+#	except Error as e:
+#		print(f"[DB ERROR] get_dashboard_metrics: {e}")
+#		return dashboard_data
+#	finally:
+#		if conn and conn.is_connected():
+#			cursor.close()
+#			conn.close()
 
 def insert_screening(person_id: int, document_id: int, officer_id: int, risk_score: float = None, decision: str = "verified") -> int | None:
 	"""
