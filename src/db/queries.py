@@ -983,10 +983,6 @@ def getAuditLogsOfOrganization(
         return {
             "success": False,
             "rows": [],
-<<<<<<< HEAD
-            "error": str(error),
-        }
-=======
             "error": f"Database error: {str(e)}",
         }
 
@@ -995,4 +991,3 @@ def getAuditLogsOfOrganization(
             cursor.close()
         if conn and conn.is_connected():
             conn.close()
->>>>>>> e04e01e7cafc388d2521c427afea415c3c9d5d7a
