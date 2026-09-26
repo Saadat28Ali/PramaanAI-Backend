@@ -2,8 +2,6 @@ from mysql.connector import Error
 from .connection import get_db_connection
 from ..util import checkDictShape
 
-
-
 def testQuery():
 	query: str = "SELECT * FROM documents";
 	conn = None;
@@ -111,7 +109,7 @@ def insertDocument(
 			conn.rollback()
 		return {
 			"success": False,
-			"error": e
+			"error": str(e)
 		};
 	finally:
 		if conn and conn.is_connected():
@@ -702,7 +700,7 @@ def insertAuditLog(user_id: int, document_id: int = None, decision: str = None, 
 	try:
 		conn = get_db_connection();
 		cursor = conn.cursor();
-		cursor.execute(query, (user_id, document_id, decision,risk_score, document_type));
+		cursor.execute(query, (user_id, document_id, decision, risk_score, document_type));
 		log_id: str = cursor.lastrowid;
 		conn.commit();
 #		return cursor.lastrowid

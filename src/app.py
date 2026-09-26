@@ -66,10 +66,16 @@ def hello_world():
 @app.route("/ocr", methods=["POST"])
 async def ocr_upload():
 	ret: dict = deepcopy(RES_TEMPLATE);
-	data: dict = request.get_json();
+#	data: dict = request.get_json();
+	data: dict = {
+		"document_type": request.form.get("document_type")
+	};
 
-	if not checkDictShape(data, {"document_type"}):
+	if data["document_type"] is None:
 		return buildRes(False, "Request JSON must contain key document_type.");
+
+#	if not checkDictShape(data, {"document_type"}):
+#		return buildRes(False, "Request JSON must contain key document_type.");
 
 	# Getting token data
 	# --------------------------------------------------
@@ -133,17 +139,22 @@ async def ocr_upload():
 
 	result = await external_ocr(filename);
 
-#	for key in result["tamper_detection"]:
-#		print(key);
-
-
 	# Inserting audit log in DB
 	# --------------------------------------------------
-	insertAuditLog(
+	audit_logs_result: dict = insertAuditLog(
 		user_data["user_id"],
 		insert_document_result["document_id"],
-		"Tampered" if result["tamper_detection"]["is_tampered"] else "Verified"
+		"Tampered" if result["tamper_detection"]["is_tampered"] else "Verified",
+		result["tamper_detection"]["anomaly_score"],
+		data["document_type"]
 	);
+	if (not audit_logs_result["success"]):
+		return buildRes(False, "Could not insert audit log.", {
+			"error": audit_logs_result.get("error"),
+			"message": audit_logs_result.get("message")
+		});
+
+	print(audit_logs_result["log_id"]);
 
 	# Returning final result
 	# --------------------------------------------------
