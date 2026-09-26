@@ -154,8 +154,6 @@ async def ocr_upload():
 			"message": audit_logs_result.get("message")
 		});
 
-	print(audit_logs_result["log_id"]);
-
 	# Returning final result
 	# --------------------------------------------------
 

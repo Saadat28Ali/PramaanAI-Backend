@@ -938,8 +938,6 @@ def createUser(
 
 
 
-					
-
 
 def getAuditLogsOfOrganization(
     connection, user_id: int, limit: int = 50, offset: int = 0
@@ -965,11 +963,14 @@ def getAuditLogsOfOrganization(
         LIMIT %s OFFSET %s;
     """
 
+    conn = None
+    cursor = None
     try:
-        # RealDictCursor returns rows as dictionaries instead of plain tuples
-        with connection.cursor(cursor_factory=RealDictCursor) as cursor:
-            cursor.execute(query, (user_id, limit, offset))
-            rows = cursor.fetchall()
+        conn = get_db_connection()
+        # dictionary=True tells MySQL Connector to return dicts instead of tuples
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(query, (user_id, limit, offset))
+        rows = cursor.fetchall()
 
         return {
             "success": True,
@@ -977,9 +978,21 @@ def getAuditLogsOfOrganization(
             "count": len(rows),
         }
 
-    except Exception as error:
+    except Error as e:
+        print(f"[DB ERROR] getAuditLogsOfOrganization: {e}")
         return {
             "success": False,
             "rows": [],
+<<<<<<< HEAD
             "error": str(error),
         }
+=======
+            "error": f"Database error: {str(e)}",
+        }
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+>>>>>>> e04e01e7cafc388d2521c427afea415c3c9d5d7a
