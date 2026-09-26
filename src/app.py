@@ -9,7 +9,7 @@ from copy import deepcopy;
 from .hash.hashf import hashIt;
 
 # from .ai.__init__ import *
-from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser, insertAuditLog;
+from .db.queries import testQuery, createUser, searchUser, insertDocument, getAuditLogsByUser, insertAuditLog, getDashboardMetrics;
 from .jwt.token import createToken;
 from .util import getTokenData, checkDictShape;
 from .external_ai.main import external_ocr;
@@ -66,6 +66,10 @@ def hello_world():
 @app.route("/ocr", methods=["POST"])
 async def ocr_upload():
 	ret: dict = deepcopy(RES_TEMPLATE);
+	data: dict = request.get_json();
+
+	if not checkDictShape(data, {"document_type"}):
+		return buildRes(False, "Request JSON must contain key document_type.");
 
 	# Getting token data
 	# --------------------------------------------------
@@ -116,7 +120,7 @@ async def ocr_upload():
 	# --------------------------------------------------
 	insert_document_result: dict = insertDocument(
 		user_id = user_data["user_id"],
-		document_type = "passport",
+		document_type = data["document_type"],
 		file_path = filename,
 	);
 	if (not insert_document_result["success"]):
@@ -131,6 +135,7 @@ async def ocr_upload():
 
 #	for key in result["tamper_detection"]:
 #		print(key);
+
 
 	# Inserting audit log in DB
 	# --------------------------------------------------
@@ -303,7 +308,60 @@ def getAuditHistory():
 
 	# Returning final result
 	# --------------------------------------------------
-	return buildRes(True, "Fetched audit logs by user.", audit_logs_fetch_result["rows"]);
+	return buildRes(True, "Fetched audit logs by user.", {
+		"rows": audit_logs_fetch_result["rows"],
+	});
+
+@app.route("/dashboard", methods=["POST"])
+def getDashboardData():
+	ret: dict = deepcopy(RES_TEMPLATE);
+	data: dict = request.get_json();
+
+	if not checkDictShape(data, {"prev_day_count"}):
+		return buildRes(msg="Request JSON requires key prev_day_count.");
+
+	# Getting token data
+	# --------------------------------------------------
+	token_data_result: dict = getTokenData(request);
+	if not token_data_result["success"]:
+		return buildRes(msg="Could not get token data.", details={
+			"error": token_data_result["error"]
+		});
+
+	token_data: dict = token_data_result["token_data"];
+
+	# Getting user data
+	# --------------------------------------------------
+
+	user_data_fetch_result: dict = searchUser(token_data["email"]);
+	if (not user_data_fetch_result["success"]):
+		return buildRes(False, "Could not find user due to DB error.", {
+			"dberror": user_data_fetch_result["error"]
+		});
+
+	user_data = user_data_fetch_result["row"];
+	if (user_data is None):
+		return buildRes(False, "Could not find user.");
+
+	# Getting dashboard metrics
+	# --------------------------------------------------
+
+	dashboard_data_result: dict = getDashboardMetrics(
+		user_data["user_id"],
+		user_data["organization_id"],
+		user_data["role"].lower() == "admin",
+		data["prev_day_count"]
+	);
+	if not dashboard_data_result["success"]:
+		return buildRes(False, "Could not fetch dashboard result.", {
+			"message": dashboard_data_result.get("message"),
+			"error": dashboard_data_result.get("error")
+		});
+
+	return buildRes(True, "Fetched dashboard data.", {
+		"audit_logs_by_decision": dashboard_data_result["audit_logs_by_decision"],
+		"audit_logs_by_date": dashboard_data_result["audit_logs_by_date"]
+	});
 
 # MAIN
 # ------------------------------------------------
